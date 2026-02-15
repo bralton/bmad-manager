@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# BMAD workflow artifacts
+_bmad/
+_bmad-output/
+.claude/
+
+# Build outputs
+build/
+.svelte-kit/
+
+# Tauri build outputs
+src-tauri/target/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Source icon (generated icons are committed)
+app-icon.svg
+app-icon.png
