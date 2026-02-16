@@ -106,12 +106,15 @@ pub async fn spawn_claude_session(
     }
 
     // Build claude command arguments
-    let mut args = vec!["--session", &options.session_name];
+    let mut args: Vec<&str> = Vec::new();
 
-    // Add resume flag if needed
+    // For resuming an existing session, use --continue with session name
     if options.resume {
-        args.push("--resume");
+        args.push("--continue");
+        args.push(&options.session_name);
     }
+    // For new sessions, Claude CLI will auto-generate a session ID
+    // We track sessions internally using our own session_name
 
     // Spawn the PTY
     let pty = PtyManager::spawn("claude", &args, &options.project_path, &[])?;

@@ -24,6 +24,19 @@ export const activeSessions = derived(sessions, ($sessions) =>
 export const activeSessionCount = derived(activeSessions, ($activeSessions) => $activeSessions.length);
 
 /**
+ * Currently selected/visible session ID.
+ */
+export const currentSessionId = writable<string | null>(null);
+
+/**
+ * Derived: currently selected session.
+ */
+export const currentSession = derived(
+  [sessions, currentSessionId],
+  ([$sessions, $id]) => ($id ? $sessions.get($id) : undefined)
+);
+
+/**
  * Adds a new session to the store.
  */
 export function addSession(session: ClaudeSession) {
@@ -72,4 +85,57 @@ export function removeSession(sessionId: string) {
  */
 export function clearSessions() {
   sessions.set(new Map());
+  currentSessionId.set(null);
+}
+
+/**
+ * Selects a session for display.
+ * Clears the new output indicator for the selected session.
+ * Updates are batched to prevent intermediate state visibility.
+ */
+export function selectSession(sessionId: string | null) {
+  // Clear new output indicator first (if applicable) to ensure
+  // subscribers see consistent state when currentSessionId updates
+  if (sessionId) {
+    sessionsWithNewOutput.update((set) => {
+      if (set.has(sessionId)) {
+        const newSet = new Set(set);
+        newSet.delete(sessionId);
+        return newSet;
+      }
+      return set;
+    });
+  }
+  currentSessionId.set(sessionId);
+}
+
+/**
+ * Tracks sessions with new (unread) output.
+ */
+export const sessionsWithNewOutput = writable<Set<string>>(new Set());
+
+/**
+ * Marks a session as having new output.
+ * Only marks if the session is not currently selected.
+ */
+export function markNewOutput(sessionId: string) {
+  const currentId = get(currentSessionId);
+  if (sessionId !== currentId) {
+    sessionsWithNewOutput.update((set) => {
+      const newSet = new Set(set);
+      newSet.add(sessionId);
+      return newSet;
+    });
+  }
+}
+
+/**
+ * Clears the new output indicator for a session.
+ */
+export function clearNewOutput(sessionId: string) {
+  sessionsWithNewOutput.update((set) => {
+    const newSet = new Set(set);
+    newSet.delete(sessionId);
+    return newSet;
+  });
 }

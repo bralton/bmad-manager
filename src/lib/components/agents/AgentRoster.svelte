@@ -1,12 +1,7 @@
 <script lang="ts">
   import { currentProject } from '$lib/stores/project';
-  import { addSession, updateSessionStatus } from '$lib/stores/sessions';
-  import {
-    spawnClaudeSession,
-    generateSessionName,
-    onSessionOutput,
-    onSessionExited
-  } from '$lib/services/process';
+  import { addSession, selectSession } from '$lib/stores/sessions';
+  import { spawnClaudeSession, generateSessionName } from '$lib/services/process';
   import AgentCard from './AgentCard.svelte';
   import type { Agent } from '$lib/types/agent';
 
@@ -49,47 +44,15 @@
 
       const session = await spawnClaudeSession({
         sessionName,
-        projectPath: project.path
+        projectPath: project.path,
+        resume: false
       });
 
-      // Add session to store
+      // Add session to store and select it for display
       addSession(session);
-
-      // Set up event listeners for this session
-      // Store unlisten functions for cleanup
-      let cleanupCalled = false;
-      let unlistenOutput: (() => void) | null = null;
-      let unlistenExit: (() => void) | null = null;
-
-      const cleanup = () => {
-        if (cleanupCalled) return;
-        cleanupCalled = true;
-        unlistenOutput?.();
-        unlistenExit?.();
-      };
-
-      // Set up output listener
-      onSessionOutput(session.id, (data) => {
-        // For now, just log output - Story 1-6 will add the terminal component
-        console.log(`[${session.id}] Output:`, data);
-      }).then((fn) => {
-        unlistenOutput = fn;
-      });
-
-      // Set up exit listener
-      onSessionExited(session.id, (status) => {
-        console.log(`[${session.id}] Exited with status:`, status);
-        updateSessionStatus(session.id, status as 'completed' | 'interrupted');
-        // Clean up all listeners
-        cleanup();
-      }).then((fn) => {
-        unlistenExit = fn;
-      });
+      selectSession(session.id);
 
       showFeedback(`Session started: ${agent.displayName}`, 'success');
-      console.log('Session started:', session);
-
-      // TODO (Story 1-6): Navigate to terminal view or show terminal panel
 
     } catch (error) {
       console.error('Failed to spawn session:', error);
