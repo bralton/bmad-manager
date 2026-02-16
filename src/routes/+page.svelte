@@ -24,8 +24,9 @@
       <SessionTabs />
 
       <!-- Session panels - stack all with proper dimensions, show selected on top -->
+      <!-- Key includes startedAt to force recreate Terminal when session is resumed -->
       <div class="flex-1 relative min-h-0">
-        {#each allSessions as sess (sess.id)}
+        {#each allSessions as sess (`${sess.id}-${sess.startedAt}`)}
           {@const isSelected = sess.id === selectedId}
           <div
             class="absolute inset-0 flex"

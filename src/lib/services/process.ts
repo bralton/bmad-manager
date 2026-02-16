@@ -18,6 +18,8 @@ export interface SpawnOptions {
   initialCommand?: string;
   /** Whether to resume an existing session */
   resume?: boolean;
+  /** Claude CLI's session UUID (required for resume, auto-generated for new sessions) */
+  claudeSessionId?: string;
 }
 
 /**
@@ -31,6 +33,8 @@ export type SessionStatus = 'active' | 'completed' | 'interrupted';
 export interface ClaudeSession {
   /** Unique session identifier */
   id: string;
+  /** Claude CLI's session UUID */
+  claudeSessionId: string;
   /** Path to the project directory */
   projectPath: string;
   /** Agent name that spawned this session */
@@ -41,6 +45,31 @@ export interface ClaudeSession {
   startedAt: string;
   /** Current session status */
   status: SessionStatus;
+}
+
+/**
+ * A session record from the persistent database.
+ * Contains additional metadata for historical sessions.
+ */
+export interface SessionRecord {
+  /** Unique session identifier */
+  id: string;
+  /** Claude CLI's session UUID */
+  claudeSessionId: string;
+  /** Path to the project directory */
+  projectPath: string;
+  /** Agent name that spawned this session */
+  agent: string;
+  /** Optional workflow being executed */
+  workflow?: string;
+  /** When the session started (ISO string) */
+  startedAt: string;
+  /** When the session was last active (ISO string) */
+  lastActive: string;
+  /** Current session status */
+  status: SessionStatus;
+  /** When the session was last resumed (ISO string), if ever */
+  resumedAt?: string;
 }
 
 /**
@@ -121,4 +150,40 @@ export function generateSessionName(projectName: string, agentName: string): str
   const sanitizedAgent = agentName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
   return `bmad-${sanitizedProject}-${sanitizedAgent}-${timestamp}`;
+}
+
+// Session Registry API
+// These functions interact with the persistent SQLite database
+
+/**
+ * Gets recent sessions across all projects, sorted by last_active descending.
+ */
+export async function getRecentSessions(limit: number): Promise<SessionRecord[]> {
+  return invoke<SessionRecord[]>('get_recent_sessions', { limit });
+}
+
+/**
+ * Gets sessions for a specific project, sorted by last_active descending.
+ */
+export async function getSessionsForProject(
+  projectPath: string,
+  limit: number
+): Promise<SessionRecord[]> {
+  return invoke<SessionRecord[]>('get_sessions_for_project', { projectPath, limit });
+}
+
+/**
+ * Searches sessions by agent, workflow, or project name.
+ */
+export async function searchSessions(query: string, limit: number): Promise<SessionRecord[]> {
+  return invoke<SessionRecord[]>('search_sessions', { query, limit });
+}
+
+/**
+ * Marks a session as resumed in the database.
+ * Updates status to active, sets resumed_at and last_active timestamps.
+ * Returns true if the session was found and updated.
+ */
+export async function resumeSessionRecord(sessionId: string): Promise<boolean> {
+  return invoke<boolean>('resume_session', { sessionId });
 }

@@ -28,6 +28,8 @@ pub struct SpawnOptions {
     pub initial_command: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
+    /// Claude CLI's session UUID (required for resume, generated for new sessions)
+    pub claude_session_id: Option<String>,
 }
 
 /// Represents an active or completed Claude session.
@@ -36,6 +38,8 @@ pub struct SpawnOptions {
 pub struct ClaudeSession {
     /// Unique session identifier
     pub id: String,
+    /// Claude CLI's session UUID
+    pub claude_session_id: String,
     /// Path to the project directory
     pub project_path: PathBuf,
     /// Agent name that spawned this session
@@ -50,9 +54,10 @@ pub struct ClaudeSession {
 
 impl ClaudeSession {
     /// Creates a new Claude session from spawn options.
-    pub fn new(options: &SpawnOptions, agent: String) -> Self {
+    pub fn new(options: &SpawnOptions, agent: String, claude_session_id: String) -> Self {
         Self {
             id: options.session_name.clone(),
+            claude_session_id,
             project_path: options.project_path.clone(),
             agent,
             workflow: options.initial_command.clone(),
@@ -73,6 +78,7 @@ mod tests {
             project_path: PathBuf::from("/path/to/project"),
             initial_command: Some("/bmad-create-prd".to_string()),
             resume: false,
+            claude_session_id: None,
         };
 
         let json = serde_json::to_string(&options).unwrap();
@@ -102,11 +108,14 @@ mod tests {
             project_path: PathBuf::from("/test/project"),
             initial_command: None,
             resume: false,
+            claude_session_id: None,
         };
 
-        let session = ClaudeSession::new(&options, "developer".to_string());
+        let claude_uuid = "550e8400-e29b-41d4-a716-446655440000".to_string();
+        let session = ClaudeSession::new(&options, "developer".to_string(), claude_uuid.clone());
 
         assert_eq!(session.id, "bmad-test-dev-20260216-150000");
+        assert_eq!(session.claude_session_id, claude_uuid);
         assert_eq!(session.agent, "developer");
         assert_eq!(session.status, SessionStatus::Active);
         assert!(session.workflow.is_none());

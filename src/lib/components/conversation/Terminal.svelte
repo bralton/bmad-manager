@@ -89,10 +89,16 @@
       updateSessionStatus(sessionId, status as 'completed' | 'interrupted');
 
       // Show exit status in terminal
-      const exitMessage =
-        exitCode !== undefined
-          ? `\r\n\x1b[90m--- Session exited with code ${exitCode} ---\x1b[0m\r\n`
-          : `\r\n\x1b[90m--- Session ${status} ---\x1b[0m\r\n`;
+      // For interrupted sessions (user-terminated), don't show confusing exit code
+      // For completed sessions, show exit code only if non-zero (indicates error)
+      let exitMessage: string;
+      if (status === 'interrupted') {
+        exitMessage = `\r\n\x1b[90m--- Session terminated ---\x1b[0m\r\n`;
+      } else if (exitCode !== undefined && exitCode !== 0) {
+        exitMessage = `\r\n\x1b[90m--- Session exited with code ${exitCode} ---\x1b[0m\r\n`;
+      } else {
+        exitMessage = `\r\n\x1b[90m--- Session completed ---\x1b[0m\r\n`;
+      }
       term.write(exitMessage);
 
       onSessionExit?.(status, exitCode);

@@ -33,6 +33,17 @@
     }, duration);
   }
 
+  /**
+   * Builds the slash command to invoke an agent.
+   * Pattern: /bmad-agent-{module}-{name} (or /bmad-agent-{name} for core module)
+   */
+  function getAgentCommand(agent: Agent): string {
+    if (agent.module === 'core') {
+      return `/bmad-agent-${agent.name}`;
+    }
+    return `/bmad-agent-${agent.module}-${agent.name}`;
+  }
+
   async function handleAgentClick(agent: Agent) {
     if (!project || spawning) return;
 
@@ -41,10 +52,12 @@
 
     try {
       const sessionName = generateSessionName(project.name, agent.name);
+      const agentCommand = getAgentCommand(agent);
 
       const session = await spawnClaudeSession({
         sessionName,
         projectPath: project.path,
+        initialCommand: agentCommand,
         resume: false
       });
 

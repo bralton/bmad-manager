@@ -9,7 +9,10 @@ mod session;
 pub use pty::{is_claude_cli_available, PtyManager};
 pub use session::{ClaudeSession, SessionStatus, SpawnOptions};
 
+use crate::session_registry;
+use chrono::Utc;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{Emitter, Window};
 use thiserror::Error;
@@ -17,6 +20,10 @@ use tokio::sync::RwLock;
 
 /// Global session registry
 static SESSIONS: std::sync::OnceLock<Arc<RwLock<SessionRegistry>>> = std::sync::OnceLock::new();
+
+/// Debounce interval for updating last_active in the database (milliseconds).
+/// We don't need sub-second precision for session tracking.
+const LAST_ACTIVE_UPDATE_INTERVAL_MS: u64 = 5000;
 
 /// Registry of active Claude sessions.
 struct SessionRegistry {
@@ -27,6 +34,8 @@ struct SessionRegistry {
 struct ActiveSession {
     session: ClaudeSession,
     pty: Arc<PtyManager>,
+    /// Last time we updated the database (for debouncing).
+    last_db_update: AtomicU64,
 }
 
 impl SessionRegistry {
@@ -105,19 +114,32 @@ pub async fn spawn_claude_session(
         return Err(ProcessError::ClaudeNotFound);
     }
 
-    // Build claude command arguments
-    let mut args: Vec<&str> = Vec::new();
+    // Determine Claude session UUID:
+    // - For resume: use the provided claude_session_id
+    // - For new sessions: generate a new UUID
+    let claude_session_id = options
+        .claude_session_id
+        .clone()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    // For resuming an existing session, use --continue with session name
-    if options.resume {
-        args.push("--continue");
-        args.push(&options.session_name);
+    // Build claude command arguments
+    let mut args: Vec<String> = if options.resume {
+        // Resume existing session by UUID
+        vec!["--resume".to_string(), claude_session_id.clone()]
+    } else {
+        // New session with specified UUID
+        vec!["--session-id".to_string(), claude_session_id.clone()]
+    };
+
+    // Add initial command as prompt argument if provided
+    if let Some(ref cmd) = options.initial_command {
+        args.push(cmd.clone());
     }
-    // For new sessions, Claude CLI will auto-generate a session ID
-    // We track sessions internally using our own session_name
+
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
     // Spawn the PTY
-    let pty = PtyManager::spawn("claude", &args, &options.project_path, &[])?;
+    let pty = PtyManager::spawn("claude", &args_refs, &options.project_path, &[])?;
     let pty = Arc::new(pty);
 
     // Extract agent name from session name (format: bmad-{project}-{agent}-{YYYYMMDD-HHmmss})
@@ -126,7 +148,7 @@ pub async fn spawn_claude_session(
     let agent = extract_agent_from_session_name(&options.session_name);
 
     // Create session metadata
-    let session = ClaudeSession::new(&options, agent);
+    let session = ClaudeSession::new(&options, agent, claude_session_id.clone());
     let session_id = session.id.clone();
 
     // Store in registry
@@ -137,8 +159,36 @@ pub async fn spawn_claude_session(
             ActiveSession {
                 session: session.clone(),
                 pty: Arc::clone(&pty),
+                last_db_update: AtomicU64::new(0),
             },
         );
+    }
+
+    // Persist session to database
+    if options.resume {
+        // For resumed sessions, update the database to mark as active with new resumed_at
+        // This is done atomically in backend to avoid tight coupling with frontend
+        if let Err(e) = session_registry::resume_session(&session.id) {
+            eprintln!("Warning: Failed to mark session as resumed in database: {}", e);
+            // Continue - in-memory tracking still works
+        }
+    } else {
+        // For new sessions, create a new record
+        let db_record = session_registry::SessionRecord {
+            id: session.id.clone(),
+            claude_session_id: session.claude_session_id.clone(),
+            project_path: session.project_path.to_string_lossy().to_string(),
+            agent: session.agent.clone(),
+            workflow: session.workflow.clone(),
+            started_at: session.started_at,
+            last_active: session.started_at,
+            status: session_registry::SessionStatus::Active,
+            resumed_at: None,
+        };
+        if let Err(e) = session_registry::save_session(&db_record) {
+            eprintln!("Warning: Failed to persist session to database: {}", e);
+            // Continue - in-memory tracking still works
+        }
     }
 
     // Spawn output reader task
@@ -149,12 +199,6 @@ pub async fn spawn_claude_session(
     tokio::spawn(async move {
         output_reader_task(reader_session_id, reader_pty, reader_window).await;
     });
-
-    // Send initial command if provided
-    if let Some(ref cmd) = options.initial_command {
-        let input = format!("{}\n", cmd);
-        pty.write_input(input.as_bytes()).await?;
-    }
 
     Ok(session)
 }
@@ -169,26 +213,74 @@ async fn output_reader_task(session_id: String, pty: Arc<PtyManager>, window: Wi
                     &format!("session-output-{}", session_id),
                     String::from_utf8_lossy(&data).to_string(),
                 );
+
+                // Update last_active in database (debounced)
+                let now_ms = Utc::now().timestamp_millis() as u64;
+                let should_update = {
+                    let registry = get_registry().read().await;
+                    if let Some(active) = registry.sessions.get(&session_id) {
+                        let last_update = active.last_db_update.load(Ordering::Relaxed);
+                        now_ms - last_update > LAST_ACTIVE_UPDATE_INTERVAL_MS
+                    } else {
+                        false
+                    }
+                };
+
+                if should_update {
+                    // Update the timestamp atomically
+                    {
+                        let registry = get_registry().read().await;
+                        if let Some(active) = registry.sessions.get(&session_id) {
+                            active.last_db_update.store(now_ms, Ordering::Relaxed);
+                        }
+                    }
+                    // Update database (non-blocking to output processing)
+                    let _ = session_registry::touch_session(&session_id);
+                }
             }
             Ok(_) => {
                 // Empty read - check if process exited
                 if pty.is_process_exited().await {
-                    // Update session status and then remove from registry to free memory
                     let exit_code = pty.exit_status().await;
-                    {
-                        let mut registry = get_registry().write().await;
-                        if let Some(active) = registry.sessions.get_mut(&session_id) {
-                            active.session.status = SessionStatus::Completed;
-                        }
-                        // Remove completed session from registry to prevent memory leak
-                        registry.sessions.remove(&session_id);
-                    }
 
-                    // Emit exit event
+                    // Determine final status: if already Interrupted (user-terminated), keep it
+                    // Otherwise, mark as Completed (natural exit)
+                    let final_status = {
+                        let mut registry = get_registry().write().await;
+                        let status = if let Some(active) = registry.sessions.get_mut(&session_id) {
+                            if active.session.status == SessionStatus::Interrupted {
+                                // User terminated - keep as interrupted
+                                SessionStatus::Interrupted
+                            } else {
+                                // Natural exit - mark as completed
+                                active.session.status = SessionStatus::Completed;
+                                SessionStatus::Completed
+                            }
+                        } else {
+                            // Session not in registry (shouldn't happen), assume completed
+                            SessionStatus::Completed
+                        };
+                        // Remove session from registry to prevent memory leak
+                        registry.sessions.remove(&session_id);
+                        status
+                    };
+
+                    // Update database with final status
+                    let db_status = match final_status {
+                        SessionStatus::Interrupted => session_registry::SessionStatus::Interrupted,
+                        _ => session_registry::SessionStatus::Completed,
+                    };
+                    let _ = session_registry::update_session_status(&session_id, db_status);
+
+                    // Emit exit event with correct status
+                    let status_str = match final_status {
+                        SessionStatus::Interrupted => "interrupted",
+                        _ => "completed",
+                    };
                     let _ = window.emit(
                         &format!("session-exited-{}", session_id),
                         serde_json::json!({
-                            "status": "completed",
+                            "status": status_str,
                             "exitCode": exit_code
                         }),
                     );
@@ -210,6 +302,12 @@ async fn output_reader_task(session_id: String, pty: Arc<PtyManager>, window: Wi
                     }
                     registry.sessions.remove(&session_id);
                 }
+
+                // Update database with interrupted status
+                let _ = session_registry::update_session_status(
+                    &session_id,
+                    session_registry::SessionStatus::Interrupted,
+                );
 
                 let _ = window.emit(
                     &format!("session-exited-{}", session_id),
@@ -239,39 +337,38 @@ pub async fn session_input(session_id: String, data: String) -> Result<(), Proce
 
 /// Terminates an active session.
 ///
-/// Lock strategy: read-release-kill-write pattern to minimize lock contention.
-/// This allows other operations (input, resize, list) to proceed while the
-/// potentially slow PTY kill operation is in progress.
+/// Lock strategy: mark-kill-cleanup pattern.
+/// We mark as Interrupted BEFORE killing so output_reader_task knows this was user-initiated.
 #[tauri::command]
 pub async fn terminate_session(session_id: String) -> Result<(), ProcessError> {
-    // Phase 1: Get PTY reference with read lock (fast, non-blocking to other reads)
+    // Phase 1: Mark as Interrupted and get PTY reference (write lock)
+    // This MUST happen before kill so output_reader_task sees the correct status
     let pty = {
-        let registry = get_registry().read().await;
+        let mut registry = get_registry().write().await;
         let active = registry
             .sessions
-            .get(&session_id)
+            .get_mut(&session_id)
             .ok_or_else(|| ProcessError::SessionNotFound(session_id.clone()))?;
 
         if active.session.status != SessionStatus::Active {
             return Err(ProcessError::SessionAlreadyTerminated(session_id.clone()));
         }
 
-        Arc::clone(&active.pty)
-    }; // Read lock released here - other operations can proceed
+        // Mark as interrupted BEFORE killing - this signals to output_reader_task
+        // that this was a user-initiated termination
+        active.session.status = SessionStatus::Interrupted;
 
-    // Phase 2: Kill PTY outside of any lock (slow operation)
-    // Other sessions can send input, resize, etc. during this time
+        Arc::clone(&active.pty)
+    }; // Write lock released here
+
+    // Phase 2: Kill PTY (slow operation, no lock held)
     pty.kill().await?;
 
-    // Phase 3: Update status with write lock (fast)
-    {
-        let mut registry = get_registry().write().await;
-        if let Some(active) = registry.sessions.get_mut(&session_id) {
-            active.session.status = SessionStatus::Interrupted;
-        }
-        // Note: If session not found here, it was already cleaned up by output_reader_task
-        // which is fine - the kill already succeeded
-    }
+    // Phase 3: Update database with interrupted status
+    let _ = session_registry::update_session_status(
+        &session_id,
+        session_registry::SessionStatus::Interrupted,
+    );
 
     Ok(())
 }
