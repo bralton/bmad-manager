@@ -3,6 +3,8 @@
  * These mirror the Rust types in src-tauri/src/project/types.rs
  */
 
+import type { Agent } from './agent';
+
 /**
  * Represents a loaded project with its state and configuration.
  */
@@ -11,6 +13,7 @@ export interface Project {
   name: string;
   state: ProjectState;
   config: BmadConfig | null;
+  agents: Agent[];
 }
 
 /**

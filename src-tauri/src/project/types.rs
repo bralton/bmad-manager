@@ -11,6 +11,7 @@ pub struct Project {
     pub name: String,
     pub state: ProjectState,
     pub config: Option<BmadConfig>,
+    pub agents: Vec<crate::bmad_parser::Agent>,
 }
 
 /// The initialization state of a project directory.

@@ -13,6 +13,8 @@ use std::path::PathBuf;
 
 use detection::{derive_project_name, detect_project_state, find_config_path};
 
+use crate::bmad_parser;
+
 /// Opens a project directory and returns its state and configuration.
 ///
 /// Detects whether the directory has .git and _bmad directories,
@@ -30,11 +32,31 @@ pub fn open_project(path: PathBuf) -> Result<Project, ProjectError> {
 
     let name = derive_project_name(config.as_ref().map(|c| c.project_name.as_str()), &path);
 
+    let agents = {
+        let manifest_path = path.join("_bmad/_config/agent-manifest.csv");
+        if manifest_path.exists() {
+            match bmad_parser::parse_agent_manifest(&manifest_path) {
+                Ok(agents) => agents,
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Failed to parse agent manifest at {}: {}",
+                        manifest_path.display(),
+                        e
+                    );
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        }
+    };
+
     Ok(Project {
         path,
         name,
         state,
         config,
+        agents,
     })
 }
 
@@ -119,5 +141,61 @@ communication_language: English
         assert!(project.config.is_none());
         // Name should fall back to directory name
         assert!(!project.name.is_empty());
+    }
+
+    #[test]
+    fn test_open_project_with_agent_manifest() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join(".git")).unwrap();
+        fs::create_dir_all(dir.path().join("_bmad/_config")).unwrap();
+
+        let csv_content = r#"name,displayName,title,icon,role,identity,communicationStyle,principles,module,path
+"analyst","Mary","Business Analyst","📊","BA Role","Identity","Style","Principles","bmm","path.md"
+"dev","Amelia","Developer","💻","Dev Role","Identity","Style","Principles","bmm","dev.md"
+"#;
+        fs::write(
+            dir.path().join("_bmad/_config/agent-manifest.csv"),
+            csv_content,
+        )
+        .unwrap();
+
+        let project = open_project(dir.path().to_path_buf()).unwrap();
+        assert_eq!(project.agents.len(), 2);
+        assert_eq!(project.agents[0].name, "analyst");
+        assert_eq!(project.agents[0].display_name, "Mary");
+        assert_eq!(project.agents[1].name, "dev");
+    }
+
+    #[test]
+    fn test_open_project_without_agent_manifest() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join(".git")).unwrap();
+        fs::create_dir(dir.path().join("_bmad")).unwrap();
+        // No agent-manifest.csv file
+
+        let project = open_project(dir.path().to_path_buf()).unwrap();
+        assert!(project.agents.is_empty());
+    }
+
+    #[test]
+    fn test_agents_html_entities_decoded() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join(".git")).unwrap();
+        fs::create_dir_all(dir.path().join("_bmad/_config")).unwrap();
+
+        let csv_content = r#"name,displayName,title,icon,role,identity,communicationStyle,principles,module,path
+"test","Test","Title","🧪","Role","Has &quot;quotes&quot;","Style &apos;here&apos;","A &amp; B","core","path.md"
+"#;
+        fs::write(
+            dir.path().join("_bmad/_config/agent-manifest.csv"),
+            csv_content,
+        )
+        .unwrap();
+
+        let project = open_project(dir.path().to_path_buf()).unwrap();
+        assert_eq!(project.agents.len(), 1);
+        assert!(project.agents[0].identity.contains("\"quotes\""));
+        assert!(project.agents[0].communication_style.contains("'here'"));
+        assert!(project.agents[0].principles.contains("A & B"));
     }
 }

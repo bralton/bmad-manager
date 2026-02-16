@@ -1,5 +1,6 @@
 // BMAD Manager - Tauri Backend
 
+mod bmad_parser;
 mod project;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
