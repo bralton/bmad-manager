@@ -238,20 +238,40 @@ pub async fn session_input(session_id: String, data: String) -> Result<(), Proce
 }
 
 /// Terminates an active session.
+///
+/// Lock strategy: read-release-kill-write pattern to minimize lock contention.
+/// This allows other operations (input, resize, list) to proceed while the
+/// potentially slow PTY kill operation is in progress.
 #[tauri::command]
 pub async fn terminate_session(session_id: String) -> Result<(), ProcessError> {
-    let mut registry = get_registry().write().await;
-    let active = registry
-        .sessions
-        .get_mut(&session_id)
-        .ok_or_else(|| ProcessError::SessionNotFound(session_id.clone()))?;
+    // Phase 1: Get PTY reference with read lock (fast, non-blocking to other reads)
+    let pty = {
+        let registry = get_registry().read().await;
+        let active = registry
+            .sessions
+            .get(&session_id)
+            .ok_or_else(|| ProcessError::SessionNotFound(session_id.clone()))?;
 
-    if active.session.status != SessionStatus::Active {
-        return Err(ProcessError::SessionAlreadyTerminated(session_id));
+        if active.session.status != SessionStatus::Active {
+            return Err(ProcessError::SessionAlreadyTerminated(session_id.clone()));
+        }
+
+        Arc::clone(&active.pty)
+    }; // Read lock released here - other operations can proceed
+
+    // Phase 2: Kill PTY outside of any lock (slow operation)
+    // Other sessions can send input, resize, etc. during this time
+    pty.kill().await?;
+
+    // Phase 3: Update status with write lock (fast)
+    {
+        let mut registry = get_registry().write().await;
+        if let Some(active) = registry.sessions.get_mut(&session_id) {
+            active.session.status = SessionStatus::Interrupted;
+        }
+        // Note: If session not found here, it was already cleaned up by output_reader_task
+        // which is fine - the kill already succeeded
     }
-
-    active.pty.kill().await?;
-    active.session.status = SessionStatus::Interrupted;
 
     Ok(())
 }
@@ -338,5 +358,67 @@ mod tests {
         // Invalid format should return "unknown"
         let session = "invalid";
         assert_eq!(extract_agent_from_session_name(session), "unknown");
+    }
+
+    #[tokio::test]
+    async fn test_terminate_nonexistent_session() {
+        // Terminating a non-existent session should return SessionNotFound
+        let result = terminate_session("nonexistent-session-id".to_string()).await;
+        assert!(result.is_err());
+        match result {
+            Err(ProcessError::SessionNotFound(id)) => {
+                assert_eq!(id, "nonexistent-session-id");
+            }
+            _ => panic!("Expected SessionNotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_terminate_no_deadlock() {
+        // This test verifies that concurrent termination attempts don't deadlock.
+        // We test with non-existent sessions since we can't easily create mock PTYs,
+        // but this still exercises the lock acquisition patterns.
+        use tokio::time::{timeout, Duration};
+
+        let session_ids: Vec<String> = (0..5)
+            .map(|i| format!("concurrent-test-session-{}", i))
+            .collect();
+
+        // Spawn concurrent termination attempts
+        let handles: Vec<_> = session_ids
+            .iter()
+            .map(|id| {
+                let id = id.clone();
+                tokio::spawn(async move { terminate_session(id).await })
+            })
+            .collect();
+
+        // All should complete within a reasonable time (no deadlock)
+        // Using 5 seconds as a generous timeout
+        let results = timeout(Duration::from_secs(5), async {
+            let mut results = Vec::new();
+            for handle in handles {
+                results.push(handle.await);
+            }
+            results
+        })
+        .await;
+
+        // Verify we didn't timeout (which would indicate a deadlock)
+        assert!(
+            results.is_ok(),
+            "Concurrent terminations should complete without deadlock"
+        );
+
+        // All should have returned SessionNotFound (since sessions don't exist)
+        let results = results.unwrap();
+        for result in results {
+            assert!(result.is_ok(), "tokio::spawn should not panic");
+            let inner_result = result.unwrap();
+            assert!(
+                matches!(inner_result, Err(ProcessError::SessionNotFound(_))),
+                "Expected SessionNotFound for non-existent session"
+            );
+        }
     }
 }
