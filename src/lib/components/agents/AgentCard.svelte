@@ -15,7 +15,7 @@
     expanded = false,
     onToggleExpand,
     onclick,
-    disabled = true
+    disabled = false
   }: Props = $props();
 
   function handleCardClick() {

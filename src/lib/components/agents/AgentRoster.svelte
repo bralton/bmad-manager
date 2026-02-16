@@ -1,5 +1,12 @@
 <script lang="ts">
   import { currentProject } from '$lib/stores/project';
+  import { addSession, updateSessionStatus } from '$lib/stores/sessions';
+  import {
+    spawnClaudeSession,
+    generateSessionName,
+    onSessionOutput,
+    onSessionExited
+  } from '$lib/services/process';
   import AgentCard from './AgentCard.svelte';
   import type { Agent } from '$lib/types/agent';
 
@@ -9,31 +16,88 @@
   // Accordion state - track which agent is expanded (only one at a time)
   let expandedAgentName = $state<string | null>(null);
 
-  // Feedback message state for disabled click
+  // Feedback message state
   let feedbackMessage = $state<string | null>(null);
+  let feedbackType = $state<'info' | 'error' | 'success'>('info');
   let feedbackTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Track if a spawn is in progress to prevent double-clicks
+  let spawning = $state(false);
 
   function handleToggleExpand(agent: Agent) {
     // Toggle: if already expanded, collapse; otherwise expand this one (and collapse others)
     expandedAgentName = expandedAgentName === agent.name ? null : agent.name;
   }
 
-  function handleAgentClick(agent: Agent) {
-    // Placeholder for Story 1-5 - show user feedback
-    console.log('Agent clicked:', agent.name, '- Session spawn not yet implemented');
-
-    // Clear any existing timeout
+  function showFeedback(message: string, type: 'info' | 'error' | 'success' = 'info', duration = 3000) {
     if (feedbackTimeout) clearTimeout(feedbackTimeout);
-
-    // Show feedback message
-    feedbackMessage = `Chat with ${agent.displayName} coming soon!`;
-
-    // Auto-dismiss after 2 seconds
+    feedbackMessage = message;
+    feedbackType = type;
     feedbackTimeout = setTimeout(() => {
       feedbackMessage = null;
-    }, 2000);
+    }, duration);
+  }
 
-    // TODO (Story 1-5): Call spawnSession with agent context
+  async function handleAgentClick(agent: Agent) {
+    if (!project || spawning) return;
+
+    spawning = true;
+    showFeedback(`Starting session with ${agent.displayName}...`, 'info');
+
+    try {
+      const sessionName = generateSessionName(project.name, agent.name);
+
+      const session = await spawnClaudeSession({
+        sessionName,
+        projectPath: project.path
+      });
+
+      // Add session to store
+      addSession(session);
+
+      // Set up event listeners for this session
+      // Store unlisten functions for cleanup
+      let cleanupCalled = false;
+      let unlistenOutput: (() => void) | null = null;
+      let unlistenExit: (() => void) | null = null;
+
+      const cleanup = () => {
+        if (cleanupCalled) return;
+        cleanupCalled = true;
+        unlistenOutput?.();
+        unlistenExit?.();
+      };
+
+      // Set up output listener
+      onSessionOutput(session.id, (data) => {
+        // For now, just log output - Story 1-6 will add the terminal component
+        console.log(`[${session.id}] Output:`, data);
+      }).then((fn) => {
+        unlistenOutput = fn;
+      });
+
+      // Set up exit listener
+      onSessionExited(session.id, (status) => {
+        console.log(`[${session.id}] Exited with status:`, status);
+        updateSessionStatus(session.id, status as 'completed' | 'interrupted');
+        // Clean up all listeners
+        cleanup();
+      }).then((fn) => {
+        unlistenExit = fn;
+      });
+
+      showFeedback(`Session started: ${agent.displayName}`, 'success');
+      console.log('Session started:', session);
+
+      // TODO (Story 1-6): Navigate to terminal view or show terminal panel
+
+    } catch (error) {
+      console.error('Failed to spawn session:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showFeedback(`Failed to start session: ${errorMsg}`, 'error', 5000);
+    } finally {
+      spawning = false;
+    }
   }
 </script>
 
@@ -42,9 +106,23 @@
     Agents
   </h3>
 
-  <!-- Feedback toast for disabled clicks -->
+  <!-- Feedback toast -->
   {#if feedbackMessage}
-    <div class="mx-3 mb-2 px-3 py-2 bg-blue-900/50 border border-blue-700 rounded-md text-xs text-blue-200">
+    {@const isInfo = feedbackType === 'info'}
+    {@const isSuccess = feedbackType === 'success'}
+    {@const isError = feedbackType === 'error'}
+    <div
+      class="mx-3 mb-2 px-3 py-2 rounded-md text-xs border"
+      class:bg-blue-900={isInfo}
+      class:border-blue-700={isInfo}
+      class:text-blue-200={isInfo}
+      class:bg-green-900={isSuccess}
+      class:border-green-700={isSuccess}
+      class:text-green-200={isSuccess}
+      class:bg-red-900={isError}
+      class:border-red-700={isError}
+      class:text-red-200={isError}
+    >
       {feedbackMessage}
     </div>
   {/if}
@@ -60,7 +138,7 @@
         expanded={expandedAgentName === agent.name}
         onToggleExpand={handleToggleExpand}
         onclick={handleAgentClick}
-        disabled={true}
+        disabled={spawning}
       />
     {/each}
   {/if}
