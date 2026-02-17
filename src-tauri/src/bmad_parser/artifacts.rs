@@ -115,6 +115,39 @@ pub fn parse_frontmatter(path: &Path) -> Option<ArtifactMeta> {
     })
 }
 
+/// Scans both planning and implementation artifact directories for a project.
+///
+/// This is the standard way to get all artifacts from a BMAD project.
+/// Scans `_bmad-output/planning-artifacts` and `_bmad-output/implementation-artifacts`.
+///
+/// # Arguments
+/// * `project_path` - Path to the project root directory
+///
+/// # Returns
+/// Vector of all artifacts from both directories, sorted by date descending (newest first).
+/// Returns empty vector if `_bmad-output` doesn't exist or contains no valid artifacts.
+pub fn scan_all_project_artifacts(project_path: &Path) -> Vec<ArtifactMeta> {
+    let output_base = project_path.join("_bmad-output");
+    let mut all_artifacts = Vec::new();
+
+    // Scan planning-artifacts
+    let planning_dir = output_base.join("planning-artifacts");
+    if planning_dir.exists() {
+        all_artifacts.extend(scan_artifacts(&planning_dir));
+    }
+
+    // Scan implementation-artifacts
+    let impl_dir = output_base.join("implementation-artifacts");
+    if impl_dir.exists() {
+        all_artifacts.extend(scan_artifacts(&impl_dir));
+    }
+
+    // Re-sort combined results by date descending
+    all_artifacts.sort_by(|a, b| b.created.cmp(&a.created));
+
+    all_artifacts
+}
+
 /// Scans a directory for artifact markdown files and parses their frontmatter.
 ///
 /// - Recursively finds all `*.md` files in the directory

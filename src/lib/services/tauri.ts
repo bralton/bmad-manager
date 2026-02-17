@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Project, ProjectState, InitOptions } from '$lib/types/project';
 import type { GlobalSettings, DependencyStatus } from '$lib/types/settings';
-import type { ArtifactMeta } from '$lib/types/workflow';
+import type { ArtifactMeta, WorkflowState } from '$lib/types/workflow';
 
 /**
  * API for project-related operations.
@@ -96,4 +96,13 @@ export const artifactApi = {
    */
   getArtifacts: (projectPath: string) =>
     invoke<ArtifactMeta[]>('get_artifacts', { project_path: projectPath }),
+
+  /**
+   * Gets the aggregated workflow state for a project.
+   * Returns current phase, active workflow, and completed artifacts.
+   * @param projectPath - Absolute path to the project directory
+   * @returns Workflow state containing phase, active workflow, and completed artifacts
+   */
+  getWorkflowState: (projectPath: string) =>
+    invoke<WorkflowState>('get_workflow_state', { project_path: projectPath }),
 };

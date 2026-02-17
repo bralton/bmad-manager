@@ -18,26 +18,15 @@ use std::path::PathBuf;
 #[tauri::command]
 fn get_artifacts(project_path: String) -> Vec<bmad_parser::ArtifactMeta> {
     let path = PathBuf::from(&project_path);
-    let output_base = path.join("_bmad-output");
+    bmad_parser::scan_all_project_artifacts(&path)
+}
 
-    let mut all_artifacts = Vec::new();
-
-    // Scan planning-artifacts
-    let planning_dir = output_base.join("planning-artifacts");
-    if planning_dir.exists() {
-        all_artifacts.extend(bmad_parser::scan_artifacts(&planning_dir));
-    }
-
-    // Scan implementation-artifacts
-    let impl_dir = output_base.join("implementation-artifacts");
-    if impl_dir.exists() {
-        all_artifacts.extend(bmad_parser::scan_artifacts(&impl_dir));
-    }
-
-    // Re-sort combined results by date descending
-    all_artifacts.sort_by(|a, b| b.created.cmp(&a.created));
-
-    all_artifacts
+/// Gets the aggregated workflow state for a project.
+/// Returns current phase, active workflow, and completed artifacts.
+#[tauri::command]
+fn get_workflow_state(project_path: String) -> bmad_parser::WorkflowState {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::aggregate_workflow_state(&path)
 }
 
 use tauri::Emitter;
@@ -125,6 +114,7 @@ pub fn run() {
             is_wizard_completed,
             check_dependencies,
             get_artifacts,
+            get_workflow_state,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

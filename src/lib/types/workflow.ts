@@ -26,3 +26,40 @@ export interface ArtifactMeta {
   /** List of input document filenames */
   inputDocuments: string[];
 }
+
+/**
+ * Development phase in the BMAD workflow.
+ */
+export type Phase =
+  | 'not-started'
+  | 'discovery'
+  | 'planning'
+  | 'solutioning'
+  | 'implementation';
+
+/**
+ * Currently active workflow being worked on.
+ */
+export interface ActiveWorkflow {
+  /** Type of workflow (e.g., "prd", "tech-spec", "create-story") */
+  workflowType: string;
+  /** Path to the output artifact file */
+  outputPath: string;
+  /** Array of completed step numbers */
+  stepsCompleted: number[];
+  /** The highest completed step number (0 if none) */
+  lastStep: number;
+}
+
+/**
+ * Aggregated workflow state for the project.
+ * Powers the workflow visualizer component.
+ */
+export interface WorkflowState {
+  /** Current development phase based on artifact analysis */
+  currentPhase: Phase;
+  /** Currently active workflow (if any is in progress) */
+  activeWorkflow?: ActiveWorkflow;
+  /** List of completed (approved) artifacts, sorted by date descending */
+  completedArtifacts: ArtifactMeta[];
+}
