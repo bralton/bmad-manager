@@ -7,9 +7,11 @@
     projectError,
   } from '$lib/stores/project';
   import { getStateLabel, getStateDescription } from '$lib/types/project';
+  import InitializeProject from './InitializeProject.svelte';
 
   // Local UI state with Svelte 5 runes
   let selectingFolder = $state(false);
+  let showInitForm = $state(false);
 
   // Reactive store access using Svelte 5 $ prefix (auto-subscribes/unsubscribes)
   let project = $derived($currentProject);
@@ -115,13 +117,18 @@
         {getStateDescription(project.state)}
       </p>
 
-      {#if project.state === 'git-only'}
+      {#if showInitForm && project.state !== 'fully-initialized'}
+        <InitializeProject
+          projectPath={project.path}
+          currentState={project.state}
+          onComplete={() => { showInitForm = false; }}
+        />
+      {:else if project.state === 'git-only'}
         <div class="flex gap-2 mt-2">
           <button
-            disabled
-            class="px-3 py-1.5 text-sm bg-blue-600/50 text-blue-200 rounded cursor-not-allowed"
-            aria-label="Initialize BMAD (coming in Story 1-10)"
-            title="Coming in Story 1-10"
+            onclick={() => { showInitForm = true; }}
+            disabled={loading}
+            class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
           >
             Initialize BMAD
           </button>
@@ -129,10 +136,9 @@
       {:else if project.state === 'bmad-only'}
         <div class="flex gap-2 mt-2">
           <button
-            disabled
-            class="px-3 py-1.5 text-sm bg-blue-600/50 text-blue-200 rounded cursor-not-allowed"
-            aria-label="Initialize Git (coming in Story 1-10)"
-            title="Coming in Story 1-10"
+            onclick={() => { showInitForm = true; }}
+            disabled={loading}
+            class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
           >
             Initialize Git
           </button>
@@ -140,10 +146,9 @@
       {:else if project.state === 'empty'}
         <div class="flex gap-2 mt-2">
           <button
-            disabled
-            class="px-3 py-1.5 text-sm bg-blue-600/50 text-blue-200 rounded cursor-not-allowed"
-            aria-label="Initialize Git and BMAD (coming in Story 1-10)"
-            title="Coming in Story 1-10"
+            onclick={() => { showInitForm = true; }}
+            disabled={loading}
+            class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
           >
             Initialize Git + BMAD
           </button>

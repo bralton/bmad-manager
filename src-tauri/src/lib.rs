@@ -1,6 +1,7 @@
 // BMAD Manager - Tauri Backend
 
 mod bmad_parser;
+mod initializer;
 mod process_manager;
 mod project;
 mod session_registry;
@@ -81,6 +82,9 @@ pub fn run() {
             process_manager::terminate_session,
             process_manager::list_active_sessions,
             process_manager::resize_session,
+            initializer::initialize_project,
+            initializer::init_git_only,
+            initializer::init_bmad_only,
             get_recent_sessions,
             get_sessions_for_project,
             search_sessions,

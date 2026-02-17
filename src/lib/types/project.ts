@@ -49,6 +49,51 @@ export interface ProjectError {
 }
 
 /**
+ * Options for project initialization.
+ * Uses camelCase to match Rust serde serialization.
+ */
+export interface InitOptions {
+  projectName: string;
+  userName: string;
+  workflowStyle: InitWorkflowStyle;
+}
+
+/**
+ * Workflow style for BMAD initialization.
+ * Uses kebab-case to match Rust serde serialization.
+ */
+export type InitWorkflowStyle = 'quick-flow' | 'full-bmm';
+
+/**
+ * Progress information emitted during initialization.
+ */
+export interface InitProgress {
+  step: string;
+  status: InitStatus;
+  message: string;
+}
+
+/**
+ * Status of an initialization step.
+ */
+export type InitStatus = 'running' | 'complete' | 'failed';
+
+/**
+ * Error returned from initialization operations.
+ */
+export interface InitError {
+  GitInitFailed?: string;
+  BmadInitFailed?: string;
+  /** BMAD failed but Git was initialized - user can retry with 'Initialize BMAD' */
+  BmadInitFailedAfterGit?: string;
+  PathNotFound?: string;
+  NotADirectory?: string;
+  GitAlreadyInitialized?: string;
+  BmadAlreadyInitialized?: string;
+  EventError?: string;
+}
+
+/**
  * Helper to get a human-readable label for project state.
  */
 export function getStateLabel(state: ProjectState): string {

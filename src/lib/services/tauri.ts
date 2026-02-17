@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Project, ProjectState } from '$lib/types/project';
+import type { Project, ProjectState, InitOptions } from '$lib/types/project';
 import type { GlobalSettings, DependencyStatus } from '$lib/types/settings';
 
 /**
@@ -29,6 +29,32 @@ export const api = {
    * @param path - Absolute path to the project directory
    */
   refreshProject: (path: string) => invoke<Project>('refresh_project', { path }),
+
+  /**
+   * Initializes a project with both Git and BMAD.
+   * Emits 'init-progress' events during initialization.
+   * @param path - Absolute path to the project directory
+   * @param options - Initialization options
+   */
+  initializeProject: (path: string, options: InitOptions) =>
+    invoke<Project>('initialize_project', { path, options }),
+
+  /**
+   * Initializes only Git in the specified directory.
+   * Emits 'init-progress' events during initialization.
+   * @param path - Absolute path to the project directory
+   */
+  initGitOnly: (path: string) =>
+    invoke<Project>('init_git_only', { path }),
+
+  /**
+   * Initializes only BMAD in the specified directory.
+   * Emits 'init-progress' events during initialization.
+   * @param path - Absolute path to the project directory
+   * @param options - Initialization options
+   */
+  initBmadOnly: (path: string, options: InitOptions) =>
+    invoke<Project>('init_bmad_only', { path, options }),
 };
 
 /**
