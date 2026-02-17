@@ -295,6 +295,8 @@ pub fn prune_old_sessions(conn: &Connection, older_than_days: u32) -> Result<u64
 }
 
 /// Gets the total count of sessions in the database.
+/// Reserved for future use (e.g., UI display of session count).
+#[allow(dead_code)]
 pub fn get_session_count(conn: &Connection) -> Result<u64, DbError> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))?;
     Ok(count as u64)

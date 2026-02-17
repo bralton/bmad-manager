@@ -15,6 +15,8 @@ pub use bmad::init_bmad;
 pub use git::init_git;
 
 /// Default timeout for commands in seconds.
+/// Reserved for future use when implementing command timeouts.
+#[allow(dead_code)]
 pub const COMMAND_TIMEOUT_SECS: u64 = 300; // 5 minutes for npx downloads
 
 /// Runs a command and returns its output.

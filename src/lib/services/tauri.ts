@@ -95,7 +95,7 @@ export const artifactApi = {
    * @returns Array of artifact metadata sorted by creation date (newest first)
    */
   getArtifacts: (projectPath: string) =>
-    invoke<ArtifactMeta[]>('get_artifacts', { project_path: projectPath }),
+    invoke<ArtifactMeta[]>('get_artifacts', { projectPath }),
 
   /**
    * Gets the aggregated workflow state for a project.
@@ -104,5 +104,5 @@ export const artifactApi = {
    * @returns Workflow state containing phase, active workflow, and completed artifacts
    */
   getWorkflowState: (projectPath: string) =>
-    invoke<WorkflowState>('get_workflow_state', { project_path: projectPath }),
+    invoke<WorkflowState>('get_workflow_state', { projectPath }),
 };

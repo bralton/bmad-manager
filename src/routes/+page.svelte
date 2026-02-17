@@ -5,6 +5,7 @@
   import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
   import SessionTabs from '$lib/components/conversation/SessionTabs.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
+  import WorkflowVisualizerContainer from '$lib/components/workflow/WorkflowVisualizerContainer.svelte';
   import { sessions, currentSession, currentSessionId, selectSession } from '$lib/stores/sessions';
   import { showWizard, loadSettings, settingsLoading, settingsError } from '$lib/stores/settings';
 
@@ -53,6 +54,9 @@
   <Sidebar />
 
   <main class="flex-1 flex flex-col min-w-0">
+    <!-- Workflow Visualizer always visible at top when project is loaded -->
+    <WorkflowVisualizerContainer />
+
     {#if hasAnySessions}
       <!-- Session tabs when multiple sessions exist -->
       <SessionTabs />
