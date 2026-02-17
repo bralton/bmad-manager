@@ -4,10 +4,37 @@ mod bmad_parser;
 mod process_manager;
 mod project;
 mod session_registry;
+mod settings;
 
 pub use process_manager::get_active_session_count;
 
 use tauri::Emitter;
+
+// Settings Tauri commands
+
+/// Gets the current application settings.
+#[tauri::command]
+fn get_settings() -> Result<settings::GlobalSettings, settings::SettingsError> {
+    settings::get_settings()
+}
+
+/// Saves application settings.
+#[tauri::command]
+fn save_settings(settings_data: settings::GlobalSettings) -> Result<(), settings::SettingsError> {
+    settings::save_settings(&settings_data)
+}
+
+/// Checks if the first-run wizard has been completed.
+#[tauri::command]
+fn is_wizard_completed() -> Result<bool, settings::SettingsError> {
+    settings::is_wizard_completed()
+}
+
+/// Checks all required external dependencies.
+#[tauri::command]
+fn check_dependencies() -> Vec<settings::DependencyStatus> {
+    settings::check_dependencies()
+}
 
 // Session registry Tauri commands
 
@@ -58,6 +85,10 @@ pub fn run() {
             get_sessions_for_project,
             search_sessions,
             resume_session,
+            get_settings,
+            save_settings,
+            is_wizard_completed,
+            check_dependencies,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
