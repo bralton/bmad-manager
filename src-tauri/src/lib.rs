@@ -9,6 +9,37 @@ mod settings;
 
 pub use process_manager::get_active_session_count;
 
+use std::path::PathBuf;
+
+// Artifact Tauri commands
+
+/// Gets artifacts from a project's _bmad-output directory.
+/// Scans both planning-artifacts and implementation-artifacts directories.
+#[tauri::command]
+fn get_artifacts(project_path: String) -> Vec<bmad_parser::ArtifactMeta> {
+    let path = PathBuf::from(&project_path);
+    let output_base = path.join("_bmad-output");
+
+    let mut all_artifacts = Vec::new();
+
+    // Scan planning-artifacts
+    let planning_dir = output_base.join("planning-artifacts");
+    if planning_dir.exists() {
+        all_artifacts.extend(bmad_parser::scan_artifacts(&planning_dir));
+    }
+
+    // Scan implementation-artifacts
+    let impl_dir = output_base.join("implementation-artifacts");
+    if impl_dir.exists() {
+        all_artifacts.extend(bmad_parser::scan_artifacts(&impl_dir));
+    }
+
+    // Re-sort combined results by date descending
+    all_artifacts.sort_by(|a, b| b.created.cmp(&a.created));
+
+    all_artifacts
+}
+
 use tauri::Emitter;
 
 // Settings Tauri commands
@@ -93,6 +124,7 @@ pub fn run() {
             save_settings,
             is_wizard_completed,
             check_dependencies,
+            get_artifacts,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

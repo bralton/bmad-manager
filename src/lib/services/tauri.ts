@@ -6,6 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Project, ProjectState, InitOptions } from '$lib/types/project';
 import type { GlobalSettings, DependencyStatus } from '$lib/types/settings';
+import type { ArtifactMeta } from '$lib/types/workflow';
 
 /**
  * API for project-related operations.
@@ -82,4 +83,17 @@ export const settingsApi = {
    * Checks all required external dependencies.
    */
   checkDependencies: () => invoke<DependencyStatus[]>('check_dependencies'),
+};
+
+/**
+ * API for artifact-related operations.
+ */
+export const artifactApi = {
+  /**
+   * Gets artifacts from a project's _bmad-output/planning-artifacts directory.
+   * @param projectPath - Absolute path to the project directory
+   * @returns Array of artifact metadata sorted by creation date (newest first)
+   */
+  getArtifacts: (projectPath: string) =>
+    invoke<ArtifactMeta[]>('get_artifacts', { project_path: projectPath }),
 };
