@@ -18,6 +18,8 @@
   let isLoadingSessions = $state(false);
   let isSearching = $state(false);
   let currentSearchQuery = $state('');
+  let resumingSessionId: string | null = $state(null);
+  let resumeError: string | null = $state(null);
   let project = $derived($currentProject);
 
   // Track session changes for live refresh (use regular variable, not $state, to avoid effect loops)
@@ -89,10 +91,30 @@
   }
 
   async function handleResume(sessionId: string) {
-    if (!project) return;
+    // Clear any previous error
+    resumeError = null;
+
+    if (!project) {
+      resumeError = 'No project selected';
+      console.warn('Cannot resume session: no project selected');
+      return;
+    }
 
     const session = historicalSessions.find((s) => s.id === sessionId);
-    if (!session) return;
+    if (!session) {
+      resumeError = 'Session not found';
+      console.warn('Cannot resume session: session not found in list');
+      return;
+    }
+
+    // If session is already active, just select it instead of spawning a new one
+    if (session.status === 'active') {
+      selectSession(sessionId);
+      return;
+    }
+
+    // Set loading state
+    resumingSessionId = sessionId;
 
     try {
       // Spawn using the ORIGINAL session ID and Claude session UUID to resume
@@ -110,7 +132,11 @@
       // Refresh the session list to show updated status
       await refreshSessions();
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      resumeError = `Failed to resume session: ${errorMessage}`;
       console.error('Failed to resume session:', error);
+    } finally {
+      resumingSessionId = null;
     }
   }
 </script>
@@ -154,9 +180,22 @@
           <div class="w-6 h-6 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin"></div>
         </div>
       {:else}
+        <!-- Show error message if resume failed -->
+        {#if resumeError}
+          <div class="mx-2 mb-2 p-2 text-sm bg-red-900/50 text-red-300 rounded border border-red-800">
+            {resumeError}
+            <button
+              onclick={() => (resumeError = null)}
+              class="ml-2 text-red-400 hover:text-red-200"
+            >
+              ✕
+            </button>
+          </div>
+        {/if}
         <SessionList
           sessions={historicalSessions}
           isSearching={isSearching}
+          {resumingSessionId}
           onResume={handleResume}
           onSearch={handleSearch}
         />

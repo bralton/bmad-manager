@@ -179,11 +179,3 @@ export async function searchSessions(query: string, limit: number): Promise<Sess
   return invoke<SessionRecord[]>('search_sessions', { query, limit });
 }
 
-/**
- * Marks a session as resumed in the database.
- * Updates status to active, sets resumed_at and last_active timestamps.
- * Returns true if the session was found and updated.
- */
-export async function resumeSessionRecord(sessionId: string): Promise<boolean> {
-  return invoke<boolean>('resume_session', { sessionId });
-}

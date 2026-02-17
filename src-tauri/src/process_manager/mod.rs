@@ -168,9 +168,23 @@ pub async fn spawn_claude_session(
     if options.resume {
         // For resumed sessions, update the database to mark as active with new resumed_at
         // This is done atomically in backend to avoid tight coupling with frontend
-        if let Err(e) = session_registry::resume_session(&session.id) {
-            eprintln!("Warning: Failed to mark session as resumed in database: {}", e);
-            // Continue - in-memory tracking still works
+        match session_registry::resume_session(&session.id) {
+            Ok(true) => {
+                // Session successfully marked as resumed in database
+            }
+            Ok(false) => {
+                // Session ID not found in database - this can happen if the session
+                // was created before database persistence was added, or if the DB was cleared.
+                // Log warning but continue - in-memory tracking still works.
+                eprintln!(
+                    "Warning: Session {} not found in database for resume tracking (may be a legacy session)",
+                    session.id
+                );
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to mark session as resumed in database: {}", e);
+                // Continue - in-memory tracking still works
+            }
         }
     } else {
         // For new sessions, create a new record

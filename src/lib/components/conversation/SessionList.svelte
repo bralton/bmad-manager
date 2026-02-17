@@ -4,11 +4,13 @@
   let {
     sessions,
     isSearching = false,
+    resumingSessionId = null,
     onResume,
     onSearch,
   }: {
     sessions: SessionRecord[];
     isSearching?: boolean;
+    resumingSessionId?: string | null;
     onResume?: (sessionId: string) => void;
     onSearch?: (query: string) => void;
   } = $props();
@@ -106,17 +108,24 @@
     {:else}
       <ul class="divide-y divide-gray-800">
         {#each sessions as session (session.id)}
+          {@const isResuming = resumingSessionId === session.id}
           <li class="hover:bg-gray-800/50 transition-colors">
             <button
               onclick={() => handleResume(session.id)}
-              class="w-full px-3 py-2 text-left flex items-start gap-3"
+              disabled={isResuming}
+              class="w-full px-3 py-2 text-left flex items-start gap-3
+                {isResuming ? 'opacity-50 cursor-wait' : ''}"
             >
               <!-- Status indicator -->
-              <span
-                class="mt-1.5 w-2 h-2 rounded-full shrink-0 {statusColors[session.status]}"
-                class:animate-pulse={session.status === 'active'}
-                title={statusLabels[session.status]}
-              ></span>
+              {#if isResuming}
+                <div class="mt-1 w-3 h-3 border-2 border-gray-600 border-t-blue-400 rounded-full animate-spin shrink-0"></div>
+              {:else}
+                <span
+                  class="mt-1.5 w-2 h-2 rounded-full shrink-0 {statusColors[session.status]}"
+                  class:animate-pulse={session.status === 'active'}
+                  title={statusLabels[session.status]}
+                ></span>
+              {/if}
 
               <!-- Session info -->
               <div class="flex-1 min-w-0">
