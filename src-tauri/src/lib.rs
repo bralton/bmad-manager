@@ -1,6 +1,7 @@
 // BMAD Manager - Tauri Backend
 
 mod bmad_parser;
+mod file_watcher;
 mod initializer;
 mod process_manager;
 mod project;
@@ -10,6 +11,7 @@ mod settings;
 pub use process_manager::get_active_session_count;
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 // Artifact Tauri commands
 
@@ -93,6 +95,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(file_watcher::WatcherState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             project::open_project,
             project::get_project_state,
@@ -115,6 +118,8 @@ pub fn run() {
             check_dependencies,
             get_artifacts,
             get_workflow_state,
+            file_watcher::start_file_watcher,
+            file_watcher::stop_file_watcher,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
