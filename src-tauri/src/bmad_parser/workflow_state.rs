@@ -6,7 +6,10 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use super::{scan_all_project_artifacts, ArtifactMeta, ArtifactStatus};
+use super::{
+    scan_all_project_artifacts, scan_implementation_items, ArtifactMeta, ArtifactStatus,
+    BugStatus, ImplementationItems, StoryStatus,
+};
 
 /// Development phase in the BMAD workflow.
 ///
@@ -92,28 +95,51 @@ fn workflow_type_to_phase(workflow_type: &str) -> Phase {
     Phase::Planning
 }
 
-/// Determines the current development phase from a list of artifacts.
+/// Determines the current development phase from artifacts and implementation items.
 ///
 /// Phase detection follows priority order (highest first):
-/// 1. Implementation - Any draft artifact with implementation workflow type
+/// 1. Implementation - Any active story/bug OR draft artifact with implementation workflow type
 /// 2. Solutioning - Any draft artifact with solutioning workflow type
 /// 3. Planning - Any draft artifact with planning workflow type
 /// 4. Discovery - Any draft artifact with discovery workflow type
 /// 5. NotStarted - No artifacts or all approved
 ///
-/// When no draft artifacts exist, returns the phase of the most recent approved artifact.
+/// Stories with status `in-progress`, `review`, or `done` indicate active implementation.
+/// Bugs with status `in-progress` or `resolved` also indicate implementation work.
+///
+/// When no active work exists, returns the phase of the most recent approved artifact.
 ///
 /// # Arguments
 /// * `artifacts` - Slice of artifact metadata to analyze
+/// * `impl_items` - Optional implementation items (stories and bugs)
 ///
 /// # Preconditions
 /// * `artifacts` should be sorted by date descending (newest first) for correct
-///   "most recent approved" fallback behavior. If unsorted, the fallback may
-///   return an arbitrary approved artifact's phase.
+///   "most recent approved" fallback behavior.
 ///
 /// # Returns
 /// The determined current phase
-pub fn determine_phase(artifacts: &[ArtifactMeta]) -> Phase {
+pub fn determine_phase(artifacts: &[ArtifactMeta], impl_items: Option<&ImplementationItems>) -> Phase {
+    // Check for active implementation work (stories and bugs)
+    if let Some(items) = impl_items {
+        // Any story with in-progress, review, or done status = Implementation
+        let has_active_story = items.stories.iter().any(|s| {
+            matches!(
+                s.status,
+                StoryStatus::InProgress | StoryStatus::Review | StoryStatus::Done
+            )
+        });
+
+        // Any bug with in-progress, review, or resolved status = Implementation
+        let has_active_bug = items.bugs.iter().any(|b| {
+            matches!(b.status, BugStatus::InProgress | BugStatus::Review | BugStatus::Resolved)
+        });
+
+        if has_active_story || has_active_bug {
+            return Phase::Implementation;
+        }
+    }
+
     if artifacts.is_empty() {
         return Phase::NotStarted;
     }
@@ -181,7 +207,7 @@ pub fn detect_active_workflow(artifacts: &[ArtifactMeta]) -> Option<ActiveWorkfl
 /// Aggregates workflow state from a project directory.
 ///
 /// Scans both `planning-artifacts` and `implementation-artifacts` directories,
-/// analyzes the artifacts, and returns a unified workflow state.
+/// analyzes artifacts, stories, and bugs to return a unified workflow state.
 ///
 /// # Arguments
 /// * `project_path` - Path to the project root directory
@@ -192,8 +218,12 @@ pub fn aggregate_workflow_state(project_path: &Path) -> WorkflowState {
     // Use shared function to scan all artifact directories
     let all_artifacts = scan_all_project_artifacts(project_path);
 
-    // Determine phase and active workflow from artifacts
-    let current_phase = determine_phase(&all_artifacts);
+    // Scan implementation items (stories and bugs) separately
+    let impl_dir = project_path.join("_bmad-output").join("implementation-artifacts");
+    let impl_items = scan_implementation_items(&impl_dir);
+
+    // Determine phase considering both artifacts and implementation items
+    let current_phase = determine_phase(&all_artifacts, Some(&impl_items));
     let active_workflow = detect_active_workflow(&all_artifacts);
 
     // Filter completed artifacts (status=approved)
@@ -212,6 +242,7 @@ pub fn aggregate_workflow_state(project_path: &Path) -> WorkflowState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::{BugMeta, StoryMeta};
     use std::fs;
     use tempfile::tempdir;
 
@@ -284,7 +315,7 @@ mod tests {
     #[test]
     fn test_determine_phase_empty_artifacts() {
         let artifacts: Vec<ArtifactMeta> = vec![];
-        assert_eq!(determine_phase(&artifacts), Phase::NotStarted);
+        assert_eq!(determine_phase(&artifacts, None), Phase::NotStarted);
     }
 
     #[test]
@@ -298,7 +329,7 @@ mod tests {
             steps_completed: vec![],
             input_documents: vec![],
         }];
-        assert_eq!(determine_phase(&artifacts), Phase::Discovery);
+        assert_eq!(determine_phase(&artifacts, None), Phase::Discovery);
     }
 
     #[test]
@@ -312,7 +343,7 @@ mod tests {
             steps_completed: vec![1, 2],
             input_documents: vec![],
         }];
-        assert_eq!(determine_phase(&artifacts), Phase::Implementation);
+        assert_eq!(determine_phase(&artifacts, None), Phase::Implementation);
     }
 
     #[test]
@@ -338,7 +369,7 @@ mod tests {
                 input_documents: vec![],
             },
         ];
-        assert_eq!(determine_phase(&artifacts), Phase::Implementation);
+        assert_eq!(determine_phase(&artifacts, None), Phase::Implementation);
     }
 
     #[test]
@@ -364,7 +395,7 @@ mod tests {
             },
         ];
         // Most recent approved is tech-spec -> Solutioning
-        assert_eq!(determine_phase(&artifacts), Phase::Solutioning);
+        assert_eq!(determine_phase(&artifacts, None), Phase::Solutioning);
     }
 
     // ========== detect_active_workflow tests ==========
@@ -712,7 +743,7 @@ workflowType: create-story"#,
             steps_completed: vec![1, 2, 3],
             input_documents: vec![],
         }];
-        assert_eq!(determine_phase(&artifacts), Phase::NotStarted);
+        assert_eq!(determine_phase(&artifacts, None), Phase::NotStarted);
     }
 
     #[test]
@@ -806,5 +837,206 @@ workflowType: tech-spec"#,
         // Should select the first (most recent) draft
         assert_eq!(active.workflow_type, "tech-spec");
         assert_eq!(active.steps_completed, vec![1, 2]);
+    }
+
+    // ========== Story/Bug-based phase detection tests (BUG-002 fix) ==========
+
+    #[test]
+    fn test_determine_phase_from_in_progress_story() {
+        let artifacts: Vec<ArtifactMeta> = vec![]; // No artifacts
+        let impl_items = ImplementationItems {
+            stories: vec![StoryMeta {
+                path: PathBuf::from("1-1-story.md"),
+                title: "Story 1.1".to_string(),
+                status: StoryStatus::InProgress,
+            }],
+            bugs: vec![],
+        };
+
+        // Story in-progress should indicate Implementation phase
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_determine_phase_from_done_story() {
+        let artifacts: Vec<ArtifactMeta> = vec![];
+        let impl_items = ImplementationItems {
+            stories: vec![StoryMeta {
+                path: PathBuf::from("1-1-story.md"),
+                title: "Story 1.1".to_string(),
+                status: StoryStatus::Done,
+            }],
+            bugs: vec![],
+        };
+
+        // Completed story indicates Implementation phase was reached
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_determine_phase_from_review_story() {
+        let artifacts: Vec<ArtifactMeta> = vec![];
+        let impl_items = ImplementationItems {
+            stories: vec![StoryMeta {
+                path: PathBuf::from("2-1-feature.md"),
+                title: "Story 2.1".to_string(),
+                status: StoryStatus::Review,
+            }],
+            bugs: vec![],
+        };
+
+        // Story in review indicates Implementation phase
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_determine_phase_from_in_progress_bug() {
+        let artifacts: Vec<ArtifactMeta> = vec![];
+        let impl_items = ImplementationItems {
+            stories: vec![],
+            bugs: vec![BugMeta {
+                path: PathBuf::from("bug-001-fix.md"),
+                title: "Bug Fix".to_string(),
+                status: BugStatus::InProgress,
+            }],
+        };
+
+        // Bug in-progress indicates Implementation phase
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_determine_phase_from_resolved_bug() {
+        let artifacts: Vec<ArtifactMeta> = vec![];
+        let impl_items = ImplementationItems {
+            stories: vec![],
+            bugs: vec![BugMeta {
+                path: PathBuf::from("bug-001-fix.md"),
+                title: "Bug Fix".to_string(),
+                status: BugStatus::Resolved,
+            }],
+        };
+
+        // Resolved bug indicates Implementation phase was reached
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_determine_phase_from_review_bug() {
+        let artifacts: Vec<ArtifactMeta> = vec![];
+        let impl_items = ImplementationItems {
+            stories: vec![],
+            bugs: vec![BugMeta {
+                path: PathBuf::from("bug-002-review.md"),
+                title: "Bug in Review".to_string(),
+                status: BugStatus::Review,
+            }],
+        };
+
+        // Bug in review indicates Implementation phase
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_determine_phase_backlog_story_does_not_indicate_implementation() {
+// Only approved planning artifacts, no active stories
+        let artifacts = vec![ArtifactMeta {
+            path: PathBuf::from("prd.md"),
+            title: "PRD".to_string(),
+            created: "2026-02-17".to_string(),
+            status: ArtifactStatus::Approved,
+            workflow_type: "prd".to_string(),
+            steps_completed: vec![1, 2, 3],
+            input_documents: vec![],
+        }];
+
+        let impl_items = ImplementationItems {
+            stories: vec![StoryMeta {
+                path: PathBuf::from("1-1-story.md"),
+                title: "Story 1.1".to_string(),
+                status: StoryStatus::Backlog, // Backlog = not active
+            }],
+            bugs: vec![],
+        };
+
+        // Backlog story should NOT trigger Implementation phase
+        // Should use artifact-based detection (Planning from approved PRD)
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Planning);
+    }
+
+    #[test]
+    fn test_determine_phase_stories_override_artifacts() {
+        // Draft planning artifact exists
+        let artifacts = vec![ArtifactMeta {
+            path: PathBuf::from("prd.md"),
+            title: "PRD".to_string(),
+            created: "2026-02-17".to_string(),
+            status: ArtifactStatus::Draft,
+            workflow_type: "prd".to_string(),
+            steps_completed: vec![1],
+            input_documents: vec![],
+        }];
+
+        let impl_items = ImplementationItems {
+            stories: vec![StoryMeta {
+                path: PathBuf::from("1-1-story.md"),
+                title: "Story 1.1".to_string(),
+                status: StoryStatus::Done,
+            }],
+            bugs: vec![],
+        };
+
+        // Active story should override draft artifact - Implementation wins
+        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_aggregate_workflow_state_with_stories() {
+        let dir = tempdir().unwrap();
+        let impl_dir = dir.path().join("_bmad-output").join("implementation-artifacts");
+        fs::create_dir_all(&impl_dir).unwrap();
+
+        // Create a story file (body-based status, not frontmatter)
+        fs::write(
+            impl_dir.join("1-1-test-story.md"),
+            r#"# Story 1.1: Test Story
+
+Status: done
+
+## Story
+As a user...
+"#,
+        )
+        .unwrap();
+
+        let state = aggregate_workflow_state(dir.path());
+
+        // Should detect Implementation phase from story
+        assert_eq!(state.current_phase, Phase::Implementation);
+    }
+
+    #[test]
+    fn test_aggregate_workflow_state_with_bugs() {
+        let dir = tempdir().unwrap();
+        let impl_dir = dir.path().join("_bmad-output").join("implementation-artifacts");
+        fs::create_dir_all(&impl_dir).unwrap();
+
+        // Create a bug file (frontmatter-based status)
+        fs::write(
+            impl_dir.join("bug-001-fix.md"),
+            r#"---
+bug_id: BUG-001
+title: 'Test Bug'
+status: resolved
+---
+# BUG-001: Test Bug
+"#,
+        )
+        .unwrap();
+
+        let state = aggregate_workflow_state(dir.path());
+
+        // Should detect Implementation phase from bug
+        assert_eq!(state.current_phase, Phase::Implementation);
     }
 }

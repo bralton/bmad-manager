@@ -30,6 +30,61 @@ pub enum ArtifactStatus {
     Deprecated,
 }
 
+/// Status of a story in the implementation workflow.
+///
+/// Stories use a different lifecycle than artifacts:
+/// backlog → ready-for-dev → in-progress → review → done
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum StoryStatus {
+    Backlog,
+    ReadyForDev,
+    InProgress,
+    Review,
+    Done,
+}
+
+/// Status of a bug in the implementation workflow.
+///
+/// Bugs use a lifecycle similar to stories:
+/// backlog → ready-for-dev → in-progress → review → resolved
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum BugStatus {
+    Backlog,
+    ReadyForDev,
+    InProgress,
+    Review,
+    Resolved,
+}
+
+/// Parsed story metadata from markdown files.
+///
+/// Stories don't use YAML frontmatter - their status is in the markdown body.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StoryMeta {
+    pub path: PathBuf,
+    pub title: String,
+    pub status: StoryStatus,
+}
+
+/// Parsed bug metadata from YAML frontmatter.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BugMeta {
+    pub path: PathBuf,
+    pub title: String,
+    pub status: BugStatus,
+}
+
+/// Collection of implementation items (stories and bugs).
+#[derive(Debug, Clone, Default)]
+pub struct ImplementationItems {
+    pub stories: Vec<StoryMeta>,
+    pub bugs: Vec<BugMeta>,
+}
+
 /// Raw frontmatter structure for deserialization.
 /// Handles both `created` and `date` field names.
 #[derive(Debug, Deserialize)]
@@ -190,11 +245,365 @@ pub fn scan_artifacts(dir: &Path) -> Vec<ArtifactMeta> {
     artifacts
 }
 
+/// Parses a story file from markdown body format.
+///
+/// Story files don't use YAML frontmatter. Instead, the status is in the markdown body:
+/// ```markdown
+/// # Story 1.1: Title
+///
+/// Status: done
+/// ```
+///
+/// # Arguments
+/// * `path` - Path to the story markdown file
+///
+/// # Returns
+/// `Some(StoryMeta)` if the file matches story format, `None` otherwise
+pub fn parse_story(path: &Path) -> Option<StoryMeta> {
+    let content = fs::read_to_string(path).ok()?;
+
+    // Extract title from first H1 heading
+    let title = content
+        .lines()
+        .find(|line| line.starts_with("# "))
+        .map(|line| line.trim_start_matches("# ").to_string())?;
+
+    // Extract status from "Status: xyz" line (case-insensitive for Status:)
+    let status_line = content
+        .lines()
+        .find(|line| line.to_lowercase().starts_with("status:"))?;
+
+    let status_str = status_line
+        .split(':')
+        .nth(1)?
+        .trim()
+        .to_lowercase();
+
+    let status = match status_str.as_str() {
+        "backlog" => StoryStatus::Backlog,
+        "ready-for-dev" => StoryStatus::ReadyForDev,
+        "in-progress" => StoryStatus::InProgress,
+        "review" => StoryStatus::Review,
+        "done" => StoryStatus::Done,
+        _ => return None,
+    };
+
+    Some(StoryMeta {
+        path: path.to_path_buf(),
+        title,
+        status,
+    })
+}
+
+/// Raw bug frontmatter structure for deserialization.
+/// Note: bug_id uses snake_case in YAML, but status values use kebab-case
+#[derive(Debug, Deserialize)]
+struct BugFrontmatterRaw {
+    #[serde(default)]
+    bug_id: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    status: Option<BugStatus>,
+}
+
+/// Parses a bug file from YAML frontmatter.
+///
+/// Bug files use YAML frontmatter with their own status values:
+/// ```yaml
+/// ---
+/// bug_id: BUG-001
+/// title: 'Bug Title'
+/// status: in-progress
+/// ---
+/// ```
+///
+/// # Arguments
+/// * `path` - Path to the bug markdown file
+///
+/// # Returns
+/// `Some(BugMeta)` if the file matches bug format, `None` otherwise
+pub fn parse_bug(path: &Path) -> Option<BugMeta> {
+    let content = fs::read_to_string(path).ok()?;
+
+    // Check for frontmatter delimiters
+    if !content.starts_with("---") {
+        return None;
+    }
+
+    // Find closing delimiter
+    let rest = &content[3..];
+    let end_idx = rest.find("---")?;
+    let yaml_content = &rest[..end_idx].trim();
+
+    // Parse YAML
+    let raw: BugFrontmatterRaw = serde_yaml::from_str(yaml_content).ok()?;
+
+    // Require bug_id to identify this as a bug file
+    raw.bug_id?;
+
+    let title = raw.title?;
+    let status = raw.status?;
+
+    Some(BugMeta {
+        path: path.to_path_buf(),
+        title,
+        status,
+    })
+}
+
+/// Scans a directory for implementation items (stories and bugs).
+///
+/// This is separate from artifact scanning because stories and bugs
+/// use different schemas than planning artifacts.
+///
+/// # Arguments
+/// * `dir` - Directory to scan (typically `implementation-artifacts`)
+///
+/// # Returns
+/// Collection of stories and bugs found in the directory
+pub fn scan_implementation_items(dir: &Path) -> ImplementationItems {
+    let mut items = ImplementationItems::default();
+
+    if !dir.exists() || !dir.is_dir() {
+        return items;
+    }
+
+    for entry in walkdir::WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+
+        // Only process markdown files
+        if !path.extension().map_or(false, |ext| ext == "md") {
+            continue;
+        }
+
+        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+        // Try bug first (has frontmatter with bug_id)
+        if filename.starts_with("bug-") {
+            if let Some(bug) = parse_bug(path) {
+                items.bugs.push(bug);
+                continue;
+            }
+        }
+
+        // Try story (matches X-X-name.md pattern, has Status: in body)
+        // Story filenames match pattern: number-number-name.md (e.g., 1-1-story.md)
+        let is_story_filename = filename
+            .split('-')
+            .take(2)
+            .all(|part| part.chars().all(|c| c.is_ascii_digit()));
+
+        if is_story_filename {
+            if let Some(story) = parse_story(path) {
+                items.stories.push(story);
+            }
+        }
+    }
+
+    items
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
+
+    // ========== Story status enum tests ==========
+
+    #[test]
+    fn test_story_status_serialization() {
+        assert_eq!(serde_json::to_string(&StoryStatus::Backlog).unwrap(), "\"backlog\"");
+        assert_eq!(serde_json::to_string(&StoryStatus::ReadyForDev).unwrap(), "\"ready-for-dev\"");
+        assert_eq!(serde_json::to_string(&StoryStatus::InProgress).unwrap(), "\"in-progress\"");
+        assert_eq!(serde_json::to_string(&StoryStatus::Review).unwrap(), "\"review\"");
+        assert_eq!(serde_json::to_string(&StoryStatus::Done).unwrap(), "\"done\"");
+    }
+
+    #[test]
+    fn test_bug_status_serialization() {
+        assert_eq!(serde_json::to_string(&BugStatus::Backlog).unwrap(), "\"backlog\"");
+        assert_eq!(serde_json::to_string(&BugStatus::ReadyForDev).unwrap(), "\"ready-for-dev\"");
+        assert_eq!(serde_json::to_string(&BugStatus::InProgress).unwrap(), "\"in-progress\"");
+        assert_eq!(serde_json::to_string(&BugStatus::Review).unwrap(), "\"review\"");
+        assert_eq!(serde_json::to_string(&BugStatus::Resolved).unwrap(), "\"resolved\"");
+    }
+
+    #[test]
+    fn test_parse_bug_review_status() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("bug-003-review.md");
+        fs::write(
+            &file,
+            r#"---
+bug_id: BUG-003
+title: 'Bug in Review'
+status: review
+---
+"#,
+        )
+        .unwrap();
+
+        let result = parse_bug(&file);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().status, BugStatus::Review);
+    }
+
+    // ========== Story parsing tests ==========
+
+    #[test]
+    fn test_parse_story_from_markdown_body() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("1-1-test-story.md");
+        // Real story format - status in markdown body, no frontmatter
+        fs::write(
+            &file,
+            r#"# Story 1.1: Test Story
+
+Status: done
+
+## Story
+
+As a user...
+"#,
+        )
+        .unwrap();
+
+        let result = parse_story(&file);
+        assert!(result.is_some());
+        let story = result.unwrap();
+        assert_eq!(story.status, StoryStatus::Done);
+        assert_eq!(story.title, "Story 1.1: Test Story");
+    }
+
+    #[test]
+    fn test_parse_story_in_progress() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("2-1-feature.md");
+        fs::write(
+            &file,
+            r#"# Story 2.1: Feature
+
+Status: in-progress
+
+## Story
+"#,
+        )
+        .unwrap();
+
+        let result = parse_story(&file);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().status, StoryStatus::InProgress);
+    }
+
+    #[test]
+    fn test_parse_story_ready_for_dev() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("3-1-next.md");
+        fs::write(
+            &file,
+            r#"# Story 3.1: Next Task
+
+Status: ready-for-dev
+
+## Story
+"#,
+        )
+        .unwrap();
+
+        let result = parse_story(&file);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().status, StoryStatus::ReadyForDev);
+    }
+
+    // ========== Bug parsing tests ==========
+
+    #[test]
+    fn test_parse_bug_frontmatter() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("bug-001-test.md");
+        fs::write(
+            &file,
+            r#"---
+bug_id: BUG-001
+title: 'Test Bug'
+status: in-progress
+---
+# BUG-001: Test Bug
+"#,
+        )
+        .unwrap();
+
+        let result = parse_bug(&file);
+        assert!(result.is_some());
+        let bug = result.unwrap();
+        assert_eq!(bug.status, BugStatus::InProgress);
+        assert_eq!(bug.title, "Test Bug");
+    }
+
+    #[test]
+    fn test_parse_bug_resolved() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("bug-002-fixed.md");
+        fs::write(
+            &file,
+            r#"---
+bug_id: BUG-002
+title: 'Fixed Bug'
+status: resolved
+---
+"#,
+        )
+        .unwrap();
+
+        let result = parse_bug(&file);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().status, BugStatus::Resolved);
+    }
+
+    // ========== Scan implementation items tests ==========
+
+    #[test]
+    fn test_scan_implementation_items_finds_stories_and_bugs() {
+        let dir = tempdir().unwrap();
+
+        // Create a story file
+        fs::write(
+            dir.path().join("1-1-story.md"),
+            r#"# Story 1.1: Test
+
+Status: done
+
+## Story
+"#,
+        )
+        .unwrap();
+
+        // Create a bug file
+        fs::write(
+            dir.path().join("bug-001-fix.md"),
+            r#"---
+bug_id: BUG-001
+title: 'Bug Fix'
+status: resolved
+---
+"#,
+        )
+        .unwrap();
+
+        let items = scan_implementation_items(dir.path());
+        assert_eq!(items.stories.len(), 1);
+        assert_eq!(items.bugs.len(), 1);
+        assert_eq!(items.stories[0].status, StoryStatus::Done);
+        assert_eq!(items.bugs[0].status, BugStatus::Resolved);
+    }
+
+    // ========== Original artifact tests ==========
 
     #[test]
     fn test_parse_valid_frontmatter() {

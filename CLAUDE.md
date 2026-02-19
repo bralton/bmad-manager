@@ -114,3 +114,59 @@ npm run check          # TypeScript check
 - All stories should have unit tests
 - Run `cargo test` before marking story done
 - Run `npm run check` to verify TypeScript
+
+---
+
+## Story Quality Gates
+
+> Added after Epic 2 Phase Detection Incident (2026-02-17). See `epic-2-retro-phase-detection-2026-02-17.md`.
+
+### For Parser/Data-Handling Stories
+
+**"Show Me The Files" Gate - Definition of Ready:**
+
+Before any story that parses or processes existing files is marked Ready for Dev:
+
+- [ ] Developer has READ at least 3 real examples of target files
+- [ ] All schema variants documented in story dev notes
+- [ ] ACs reference actual field values from real files, not assumed values
+- [ ] Evidence in story: file paths examined, relevant frontmatter/fields noted
+
+**Required Story Section:**
+```markdown
+### Validated Against (REQUIRED for parser stories)
+Files examined before implementation:
+| File | Relevant Fields | Notes |
+|------|-----------------|-------|
+| _bmad-output/implementation-artifacts/1-1-example.md | status: done | Story status, not artifact |
+```
+
+### For All Stories
+
+**Assumptions Log (Required):**
+
+Every story must explicitly list assumptions that would invalidate the implementation:
+
+```markdown
+### Assumptions (if wrong, story fails)
+- All files in target directory use the same schema
+- Status values are limited to: x, y, z
+- [List any assumption that, if wrong, breaks the implementation]
+```
+
+**Same-Session Bug Rule:**
+
+> If implementation reveals requirements were wrong and spawns bugs in the SAME session, the original story is NOT done. Either fix in-story or explicitly acknowledge the scope miss and create follow-up with adjusted estimates.
+
+### Design Doc Validation
+
+Architecture/design documents must include a "Validated Against Real Data" section:
+
+```markdown
+### Validated Against Real Data
+| File | Relevant Fields | Notes |
+|------|-----------------|-------|
+| path/to/actual/file.md | field: value | Matches/differs from assumption |
+```
+
+Do not design against concepts. Design against actual files.

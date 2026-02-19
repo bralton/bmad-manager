@@ -6,6 +6,9 @@ mod types;
 mod workflow_state;
 
 pub use agents::parse_agent_manifest;
-pub use artifacts::{scan_all_project_artifacts, ArtifactMeta, ArtifactStatus};
+pub use artifacts::{
+    scan_all_project_artifacts, scan_implementation_items, ArtifactMeta, ArtifactStatus,
+    BugMeta, BugStatus, ImplementationItems, StoryMeta, StoryStatus,
+};
 pub use types::Agent;
 pub use workflow_state::{aggregate_workflow_state, WorkflowState};
