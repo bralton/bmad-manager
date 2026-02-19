@@ -6,8 +6,11 @@
   import SessionTabs from '$lib/components/conversation/SessionTabs.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
   import WorkflowVisualizerContainer from '$lib/components/workflow/WorkflowVisualizerContainer.svelte';
+  import CommandPalette from '$lib/components/shared/CommandPalette.svelte';
+  import Toast from '$lib/components/shared/Toast.svelte';
   import { sessions, currentSession, currentSessionId, selectSession } from '$lib/stores/sessions';
   import { showWizard, loadSettings, settingsLoading, settingsError } from '$lib/stores/settings';
+  import { toggleCommandPalette } from '$lib/stores/ui';
 
   let selectedId = $derived($currentSessionId);
   let allSessions = $derived(Array.from($sessions.values()));
@@ -16,9 +19,23 @@
   let isLoadingSettings = $derived($settingsLoading);
   let loadError = $derived($settingsError);
 
-  // Load settings on mount to determine if wizard should show
+  // Load settings on mount and set up global keyboard shortcut
   onMount(() => {
     loadSettings();
+
+    // Global keyboard shortcut handler for command palette
+    // Uses capture phase to intercept before xterm.js
+    const handler = (e: KeyboardEvent) => {
+      // Cmd+K on macOS, Ctrl+K on Windows/Linux
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCommandPalette();
+      }
+    };
+
+    window.addEventListener('keydown', handler, { capture: true });
+    return () => window.removeEventListener('keydown', handler, { capture: true });
   });
 
   function handleClosePanel() {
@@ -49,6 +66,12 @@
 {#if wizardVisible && !isLoadingSettings}
   <FirstRunWizard />
 {/if}
+
+<!-- Command Palette -->
+<CommandPalette />
+
+<!-- Toast Notifications -->
+<Toast />
 
 <div class="flex h-screen bg-gray-900 text-gray-100">
   <Sidebar />

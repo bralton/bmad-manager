@@ -31,6 +31,17 @@ fn get_workflow_state(project_path: String) -> bmad_parser::WorkflowState {
     bmad_parser::aggregate_workflow_state(&path)
 }
 
+/// Gets available BMAD workflows from the workflow manifest.
+/// Reads _bmad/_config/workflow-manifest.csv from the project directory.
+#[tauri::command]
+fn get_workflows(project_path: String) -> Result<Vec<bmad_parser::Workflow>, String> {
+    let path = PathBuf::from(&project_path);
+    let manifest_path = path.join("_bmad/_config/workflow-manifest.csv");
+
+    bmad_parser::parse_workflow_manifest(&manifest_path)
+        .map_err(|e| e.to_string())
+}
+
 use tauri::Emitter;
 
 // Settings Tauri commands
@@ -118,6 +129,7 @@ pub fn run() {
             check_dependencies,
             get_artifacts,
             get_workflow_state,
+            get_workflows,
             file_watcher::start_file_watcher,
             file_watcher::stop_file_watcher,
         ])

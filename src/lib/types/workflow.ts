@@ -63,3 +63,18 @@ export interface WorkflowState {
   /** List of completed (approved) artifacts, sorted by date descending */
   completedArtifacts: ArtifactMeta[];
 }
+
+/**
+ * Represents a BMAD workflow from the workflow manifest.
+ * Used by the command palette to display available workflows.
+ */
+export interface Workflow {
+  /** Workflow name/identifier (e.g., "create-prd") */
+  name: string;
+  /** Human-readable description */
+  description: string;
+  /** Module that provides this workflow (e.g., "bmm", "core") */
+  module: string;
+  /** Path to the workflow definition file */
+  path: string;
+}

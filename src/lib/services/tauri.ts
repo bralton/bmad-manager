@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Project, ProjectState, InitOptions } from '$lib/types/project';
 import type { GlobalSettings, DependencyStatus } from '$lib/types/settings';
-import type { ArtifactMeta, WorkflowState } from '$lib/types/workflow';
+import type { ArtifactMeta, WorkflowState, Workflow } from '$lib/types/workflow';
 
 /**
  * API for project-related operations.
@@ -105,4 +105,17 @@ export const artifactApi = {
    */
   getWorkflowState: (projectPath: string) =>
     invoke<WorkflowState>('get_workflow_state', { projectPath }),
+};
+
+/**
+ * API for workflow manifest operations.
+ */
+export const workflowApi = {
+  /**
+   * Gets available BMAD workflows from the project's workflow manifest.
+   * @param projectPath - Absolute path to the project directory
+   * @returns Array of workflow definitions
+   */
+  getWorkflows: (projectPath: string) =>
+    invoke<Workflow[]>('get_workflows', { project_path: projectPath }),
 };

@@ -242,7 +242,7 @@ pub fn aggregate_workflow_state(project_path: &Path) -> WorkflowState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::{BugMeta, StoryMeta};
+    use super::super::artifacts::{BugMeta, StoryMeta};
     use std::fs;
     use tempfile::tempdir;
 
