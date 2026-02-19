@@ -5,7 +5,6 @@
   import {
     commandPaletteOpen,
     closeCommandPalette,
-    showToast,
     setLastExecutedCommand,
   } from '$lib/stores/ui';
   import type { Workflow } from '$lib/types/workflow';
@@ -122,10 +121,9 @@
 
   function executeCommand(commandName: string) {
     // Store command for story 2-6 to inject
+    // Note: Toast is shown by +page.svelte handler based on action taken
+    // (active session injection vs new session spawn)
     setLastExecutedCommand(commandName);
-
-    // Show toast feedback
-    showToast(`Sending /${commandName} to session...`, '⚡');
 
     // Call optional handler
     onExecute?.(commandName);

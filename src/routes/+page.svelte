@@ -8,9 +8,26 @@
   import WorkflowVisualizerContainer from '$lib/components/workflow/WorkflowVisualizerContainer.svelte';
   import CommandPalette from '$lib/components/shared/CommandPalette.svelte';
   import Toast from '$lib/components/shared/Toast.svelte';
-  import { sessions, currentSession, currentSessionId, selectSession } from '$lib/stores/sessions';
+  import {
+    sessions,
+    currentSession,
+    currentSessionId,
+    selectSession,
+    addSession,
+  } from '$lib/stores/sessions';
   import { showWizard, loadSettings, settingsLoading, settingsError } from '$lib/stores/settings';
-  import { toggleCommandPalette } from '$lib/stores/ui';
+  import { currentProject } from '$lib/stores/project';
+  import {
+    toggleCommandPalette,
+    lastExecutedCommand,
+    clearLastExecutedCommand,
+    showToast,
+  } from '$lib/stores/ui';
+  import {
+    spawnClaudeSession,
+    sendSessionInput,
+    generateSessionName,
+  } from '$lib/services/process';
 
   let selectedId = $derived($currentSessionId);
   let allSessions = $derived(Array.from($sessions.values()));
@@ -18,6 +35,91 @@
   let wizardVisible = $derived($showWizard);
   let isLoadingSettings = $derived($settingsLoading);
   let loadError = $derived($settingsError);
+  let project = $derived($currentProject);
+  let activeSession = $derived($currentSession);
+  let executedCommand = $derived($lastExecutedCommand);
+
+  // Track when a session is being spawned to prevent duplicate spawns
+  let isSpawningSession = $state(false);
+
+  // Queue for commands received while a session is spawning (AC3: queue until ready)
+  let pendingCommand = $state<string | null>(null);
+
+  // React to command execution from CommandPalette
+  $effect(() => {
+    const command = executedCommand;
+    if (command) {
+      handleCommandExecution(command);
+      clearLastExecutedCommand();
+    }
+  });
+
+  // Process pending command when session spawn completes (AC3: inject once ready)
+  $effect(() => {
+    if (!isSpawningSession && pendingCommand && activeSession?.status === 'active') {
+      const cmd = pendingCommand;
+      pendingCommand = null;
+      // Inject the queued command into the now-ready session
+      sendSessionInput(activeSession.id, `/${cmd}\n`)
+        .then(() => {
+          showToast(`Sent /${cmd} to session`, '⚡');
+        })
+        .catch((e: unknown) => {
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          showToast(`Failed to send queued command: ${errorMsg}`, '✗', 3000);
+        });
+    }
+  });
+
+  /**
+   * Handles command injection into active session or spawns a new session.
+   * Called when user selects a command from the CommandPalette.
+   */
+  async function handleCommandExecution(command: string) {
+    const session = activeSession;
+
+    if (session && session.status === 'active') {
+      // Inject command into active session
+      try {
+        await sendSessionInput(session.id, `/${command}\n`);
+        showToast(`Sent /${command} to session`, '⚡');
+      } catch (e: unknown) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        showToast(`Failed to send command: ${errorMsg}`, '✗', 3000);
+      }
+    } else {
+      // Spawn new session with command
+      if (!project?.path) {
+        showToast('No project loaded. Open a project first.', '✗', 3000);
+        return;
+      }
+
+      // Queue command if another spawn is in progress (AC3: queue until ready)
+      if (isSpawningSession) {
+        pendingCommand = command;
+        showToast(`Queued /${command} - session starting...`, '⏳');
+        return;
+      }
+
+      try {
+        isSpawningSession = true;
+        showToast(`Starting session with /${command}...`, '🚀');
+        const sessionName = generateSessionName(project.name, 'command');
+        const newSession = await spawnClaudeSession({
+          sessionName,
+          projectPath: project.path,
+          initialCommand: `/${command}`,
+        });
+        addSession(newSession);
+        selectSession(newSession.id);
+      } catch (e: unknown) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        showToast(`Failed to start session: ${errorMsg}. Try again or check Claude CLI.`, '✗', 4000);
+      } finally {
+        isSpawningSession = false;
+      }
+    }
+  }
 
   // Load settings on mount and set up global keyboard shortcut
   onMount(() => {
@@ -99,6 +201,24 @@
           </div>
         {/each}
       </div>
+    {:else if isSpawningSession}
+      <!-- Session spawning indicator (AC3: loading state) -->
+      <div class="flex-1 flex items-center justify-center">
+        <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700 max-w-md w-full mx-4">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl animate-pulse">🚀</span>
+            <span class="text-lg text-gray-100">Starting Claude session...</span>
+          </div>
+          <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div class="h-full bg-blue-500 rounded-full animate-progress-indeterminate"></div>
+          </div>
+          {#if pendingCommand}
+            <p class="text-sm text-gray-400 mt-3">
+              Queued: <span class="text-blue-400 font-mono">/{pendingCommand}</span>
+            </p>
+          {/if}
+        </div>
+      </div>
     {:else}
       <div class="flex-1 p-8">
         <header class="mb-8">
@@ -110,3 +230,24 @@
     {/if}
   </main>
 </div>
+
+<style>
+  @keyframes progress-indeterminate {
+    0% {
+      width: 0%;
+      margin-left: 0%;
+    }
+    50% {
+      width: 40%;
+      margin-left: 30%;
+    }
+    100% {
+      width: 0%;
+      margin-left: 100%;
+    }
+  }
+
+  .animate-progress-indeterminate {
+    animation: progress-indeterminate 1.5s ease-in-out infinite;
+  }
+</style>
