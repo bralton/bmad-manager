@@ -23,13 +23,35 @@ pub struct MyStruct {
 
 ### 2. Tauri Invoke Parameter Naming
 
-**Parameter names in `invoke()` must match Rust function parameter names exactly:**
+**Tauri v2 automatically converts camelCase to snake_case for invoke parameters.**
+
+Use camelCase in TypeScript - it's the idiomatic convention and matches the rest of the codebase:
 ```typescript
-// If Rust has: pub async fn my_command(session_id: String, options: Options)
-// Then TypeScript must use:
-invoke('my_command', { sessionId: '...', options: {...} })  // WRONG - sessionId vs session_id
-invoke('my_command', { session_id: '...', options: {...} }) // CORRECT
+// Rust function: pub async fn session_input(session_id: String, data: String)
+// TypeScript call:
+invoke('session_input', { sessionId: '...', data: '...' })  // CORRECT - camelCase works
+
+// Rust function: pub async fn get_artifacts(project_path: String)
+// TypeScript call:
+invoke('get_artifacts', { projectPath: '/path/to/project' })  // CORRECT - camelCase works
 ```
+
+**Why this works:** Tauri v2's invoke system deserializes parameters using serde with automatic
+camelCase-to-snake_case conversion. Both `{ sessionId }` and `{ session_id }` will match a Rust
+parameter named `session_id`.
+
+**Verified working examples from this codebase:**
+
+| Rust Parameter | TypeScript Call | File |
+|----------------|-----------------|------|
+| `session_id: String` | `{ sessionId }` | `src/lib/services/process.ts:86` |
+| `project_path: String` | `{ projectPath }` | `src/lib/services/tauri.ts:98` |
+| `options: SpawnOptions` | `{ options }` | `src/lib/services/process.ts:79` |
+| `settings_data: GlobalSettings` | `{ settings_data: settings }` | `src/lib/services/tauri.ts:75` |
+
+**Note:** For struct parameters (like `SpawnOptions`), the struct itself needs `#[serde(rename_all = "camelCase")]`
+so that TypeScript can send `{ sessionName, projectPath }` and it deserializes to `session_name`, `project_path`
+on the Rust side. See pitfall #1 above.
 
 ### 3. Optional Fields Need Defaults
 
