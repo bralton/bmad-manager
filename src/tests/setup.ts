@@ -19,3 +19,52 @@ if (typeof crypto.randomUUID === 'undefined') {
     },
   });
 }
+
+// Mock Element.scrollIntoView for jsdom
+if (typeof Element.prototype.scrollIntoView === 'undefined') {
+  Element.prototype.scrollIntoView = function () {
+    // No-op in tests
+  };
+}
+
+// Mock Element.animate for jsdom (Web Animations API)
+// Used by Svelte's slide transition
+if (typeof Element.prototype.animate === 'undefined') {
+  Element.prototype.animate = function () {
+    const animation: Partial<Animation> & { onfinish: ((ev: AnimationPlaybackEvent) => void) | null } = {
+      cancel: () => {},
+      finish: () => {},
+      play: () => {},
+      pause: () => {},
+      reverse: () => {},
+      finished: Promise.resolve() as unknown as Promise<Animation>,
+      ready: Promise.resolve() as unknown as Promise<Animation>,
+      onfinish: null,
+      oncancel: null,
+      playState: 'finished',
+      currentTime: 0,
+      startTime: 0,
+      effect: null,
+      timeline: null,
+      playbackRate: 1,
+      pending: false,
+      id: '',
+      replaceState: 'active',
+      persist: () => {},
+      commitStyles: () => {},
+      updatePlaybackRate: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => true,
+    };
+
+    // Schedule onfinish callback to fire after animation "completes"
+    setTimeout(() => {
+      if (animation.onfinish) {
+        animation.onfinish({} as AnimationPlaybackEvent);
+      }
+    }, 0);
+
+    return animation as unknown as Animation;
+  };
+}

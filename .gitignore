@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Test coverage
+coverage/
+
 # BMAD workflow artifacts
 _bmad/
 _bmad-output/

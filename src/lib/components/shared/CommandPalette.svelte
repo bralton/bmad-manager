@@ -171,10 +171,11 @@
 
 {#if isOpen}
   <!-- Backdrop with blur -->
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
     class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-fade-in"
     onclick={handleBackdropClick}
+    onkeydown={(e) => e.key === 'Escape' && closeCommandPalette()}
+    role="presentation"
   >
     <!-- Modal - centered horizontally, top-[20%] from viewport -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

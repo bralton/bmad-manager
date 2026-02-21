@@ -124,4 +124,36 @@ describe('Toast', () => {
       expect(screen.queryByText('Click to dismiss me')).not.toBeInTheDocument();
     });
   });
+
+  // P2: Test z-index and positioning classes
+  it('has correct positioning classes for bottom-right corner', () => {
+    render(Toast);
+
+    // The container should have fixed positioning at bottom-right with high z-index
+    const container = document.querySelector('.fixed.bottom-4.right-4');
+    expect(container).toBeInTheDocument();
+    // z-[60] is a Tailwind arbitrary value for z-index: 60
+    expect(container).toHaveClass('z-[60]');
+  });
+
+  // P2: Test toast stacking with flex layout
+  it('stacks toasts using flex column layout', async () => {
+    render(Toast);
+
+    toasts.set([
+      { id: 'toast-1', message: 'First toast' },
+      { id: 'toast-2', message: 'Second toast' },
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText('First toast')).toBeInTheDocument();
+      expect(screen.getByText('Second toast')).toBeInTheDocument();
+    });
+
+    // Check the container uses flex with column layout and gap
+    const container = document.querySelector('.fixed.bottom-4.right-4');
+    expect(container).toHaveClass('flex');
+    expect(container).toHaveClass('flex-col');
+    expect(container).toHaveClass('gap-2');
+  });
 });
