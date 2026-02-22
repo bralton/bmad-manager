@@ -12,7 +12,6 @@ mod worktree;
 pub use process_manager::get_active_session_count;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
 use tauri::{AppHandle, Manager, WebviewWindowBuilder, WebviewUrl};
 
 // Artifact Tauri commands
@@ -180,7 +179,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(file_watcher::WatcherState(Mutex::new(None)))
+        .manage(file_watcher::WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             project::open_project,
             project::get_project_state,

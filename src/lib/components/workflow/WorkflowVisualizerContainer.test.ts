@@ -22,6 +22,13 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+// Mock Tauri webviewWindow API for per-window file watcher
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: vi.fn(() => ({
+    label: 'test-window',
+  })),
+}));
+
 // Mock event listeners
 vi.mock('$lib/services/events', () => ({
   setupEventListeners: vi.fn(() => Promise.resolve([])),
@@ -260,7 +267,8 @@ describe('WorkflowVisualizerContainer', () => {
 
       await waitFor(() => {
         expect(mockInvoke).toHaveBeenCalledWith('start_file_watcher', {
-          project_path: '/test/project',
+          windowLabel: 'test-window',
+          projectPath: '/test/project',
         });
       });
     });
@@ -286,9 +294,11 @@ describe('WorkflowVisualizerContainer', () => {
       // Unmount
       unmount();
 
-      // Should call stop
+      // Should call stop with window label
       await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith('stop_file_watcher');
+        expect(mockInvoke).toHaveBeenCalledWith('stop_file_watcher', {
+          windowLabel: 'test-window',
+        });
       });
     });
   });

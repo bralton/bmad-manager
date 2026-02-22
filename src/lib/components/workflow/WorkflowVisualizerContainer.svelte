@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onDestroy } from 'svelte';
+  import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import WorkflowVisualizer from './WorkflowVisualizer.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
@@ -28,6 +29,18 @@
   // Track watcher status for UI indication
   let watcherActive = $state(false);
   let watcherError: string | null = $state(null);
+
+  // Get window label for per-window file watcher
+  // Uses a function to handle test environment where Tauri APIs may not be available
+  function getWindowLabel(): string {
+    try {
+      return getCurrentWebviewWindow().label;
+    } catch {
+      // Fallback for test environment or if Tauri context is not available
+      return 'main';
+    }
+  }
+  const windowLabel = getWindowLabel();
 
   // Watch for project changes and refresh workflow state
   // This handles both initial mount (lastProjectPath starts null) and subsequent changes
@@ -60,13 +73,17 @@
 
   /**
    * Starts the file watcher and sets up event listeners for a project.
+   * Each window has its own independent file watcher.
    */
   async function startWatcher(projectPath: string) {
     watcherError = null;
 
     try {
-      // Start the Rust file watcher
-      await invoke('start_file_watcher', { project_path: projectPath });
+      // Start the Rust file watcher for this window
+      await invoke('start_file_watcher', {
+        windowLabel,
+        projectPath,
+      });
       watcherActive = true;
 
       // Set up event listeners that trigger workflow refresh
@@ -109,9 +126,9 @@
     eventUnlisteners.forEach((unlisten) => unlisten());
     eventUnlisteners = [];
 
-    // Stop the Rust file watcher and wait for it
+    // Stop the Rust file watcher for this window
     try {
-      await invoke('stop_file_watcher');
+      await invoke('stop_file_watcher', { windowLabel });
     } catch (err) {
       console.warn('Failed to stop file watcher:', err);
     }

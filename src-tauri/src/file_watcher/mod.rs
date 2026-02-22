@@ -2,10 +2,17 @@
 //!
 //! This module provides real-time file watching capabilities to automatically
 //! refresh the workflow visualizer when BMAD artifacts change.
+//!
+//! ## Multi-Window Support
+//!
+//! Each window can have its own independent file watcher. Watchers are keyed by
+//! window label, allowing multiple windows to watch different project directories
+//! simultaneously without interfering with each other.
 
-use notify_debouncer_mini::{new_debouncer, DebouncedEventKind, Debouncer};
 use notify::{RecommendedWatcher, RecursiveMode};
+use notify_debouncer_mini::{new_debouncer, DebouncedEventKind, Debouncer};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver};
@@ -39,12 +46,16 @@ pub enum WatchEvent {
     WatcherError { message: String },
 }
 
-/// Tauri state wrapper for the file watcher.
-pub struct WatcherState(pub Mutex<Option<BmadWatcher>>);
+/// Tauri state wrapper for per-window file watchers.
+///
+/// Each window is identified by its label and can have its own independent
+/// file watcher. This allows multiple windows to watch different projects
+/// simultaneously.
+pub struct WatcherState(pub Mutex<HashMap<String, BmadWatcher>>);
 
 impl Default for WatcherState {
     fn default() -> Self {
-        Self(Mutex::new(None))
+        Self(Mutex::new(HashMap::new()))
     }
 }
 
@@ -218,35 +229,45 @@ impl Drop for BmadWatcher {
     }
 }
 
-/// Starts the file watcher for a project.
+/// Starts the file watcher for a project in a specific window.
 ///
-/// If a watcher is already running, it will be stopped first.
+/// Each window can have its own independent file watcher. If a watcher is already
+/// running for this window, it will be stopped first before starting the new one.
+///
+/// # Arguments
+/// * `window_label` - The label of the window starting the watcher
+/// * `project_path` - Path to the project directory to watch
 #[tauri::command]
 pub fn start_file_watcher(
+    window_label: String,
     project_path: String,
     state: tauri::State<'_, WatcherState>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let mut watcher_guard = state.0.lock().map_err(|e| e.to_string())?;
+    let mut watchers = state.0.lock().map_err(|e| e.to_string())?;
 
-    // Stop existing watcher if any
-    if watcher_guard.is_some() {
-        *watcher_guard = None;
-    }
+    // Stop existing watcher for this window if any (drop removes it)
+    watchers.remove(&window_label);
 
-    // Create new watcher
+    // Create new watcher for this window
     let watcher = BmadWatcher::new(PathBuf::from(&project_path), app_handle)
         .map_err(|e| e.to_string())?;
 
-    *watcher_guard = Some(watcher);
+    watchers.insert(window_label, watcher);
     Ok(())
 }
 
-/// Stops the currently running file watcher.
+/// Stops the file watcher for a specific window.
+///
+/// # Arguments
+/// * `window_label` - The label of the window whose watcher should be stopped
 #[tauri::command]
-pub fn stop_file_watcher(state: tauri::State<'_, WatcherState>) -> Result<(), String> {
-    let mut watcher_guard = state.0.lock().map_err(|e| e.to_string())?;
-    *watcher_guard = None;
+pub fn stop_file_watcher(
+    window_label: String,
+    state: tauri::State<'_, WatcherState>,
+) -> Result<(), String> {
+    let mut watchers = state.0.lock().map_err(|e| e.to_string())?;
+    watchers.remove(&window_label);
     Ok(())
 }
 
@@ -306,30 +327,68 @@ mod tests {
     fn test_watcher_state_default() {
         let state = WatcherState::default();
         let guard = state.0.lock().unwrap();
-        assert!(guard.is_none());
+        assert!(guard.is_empty());
+    }
+
+    #[test]
+    fn test_watcher_state_per_window_isolation_pattern() {
+        // Test the HashMap keying pattern used by start_file_watcher/stop_file_watcher.
+        // We can't create real BmadWatcher instances without AppHandle, so we verify
+        // the HashMap operations pattern that the commands use.
+        //
+        // This test verifies:
+        // 1. Multiple window labels can coexist independently
+        // 2. Removing one window's entry doesn't affect others
+        // 3. The same window label overwrites previous entries
+
+        // Use a simple HashMap<String, String> to test the pattern
+        // (mirrors WatcherState's HashMap<String, BmadWatcher> behavior)
+        let mut watchers: HashMap<String, String> = HashMap::new();
+
+        // Simulate start_file_watcher for window-1
+        watchers.remove("window-1"); // Stop existing (noop for new)
+        watchers.insert("window-1".to_string(), "project-a".to_string());
+
+        // Simulate start_file_watcher for window-2 (different window)
+        watchers.remove("window-2");
+        watchers.insert("window-2".to_string(), "project-b".to_string());
+
+        // Both windows coexist independently
+        assert_eq!(watchers.len(), 2);
+        assert_eq!(watchers.get("window-1"), Some(&"project-a".to_string()));
+        assert_eq!(watchers.get("window-2"), Some(&"project-b".to_string()));
+
+        // Simulate stop_file_watcher for window-1 only
+        watchers.remove("window-1");
+
+        // window-2 remains unaffected (isolation verified)
+        assert_eq!(watchers.len(), 1);
+        assert!(!watchers.contains_key("window-1"));
+        assert_eq!(watchers.get("window-2"), Some(&"project-b".to_string()));
+
+        // Simulate window-2 switching projects (overwrite pattern)
+        watchers.remove("window-2");
+        watchers.insert("window-2".to_string(), "project-c".to_string());
+
+        assert_eq!(watchers.get("window-2"), Some(&"project-c".to_string()));
     }
 
     #[test]
     fn test_watcher_state_cleanup() {
-        // Test that setting state to None properly cleans up
+        // Test that removing from HashMap properly cleans up
         let state = WatcherState::default();
 
-        // Initially None
+        // Initially empty
         {
             let guard = state.0.lock().unwrap();
-            assert!(guard.is_none());
+            assert!(guard.is_empty());
         }
 
-        // Set to None explicitly (simulates stop_file_watcher)
+        // Verify removal works on empty map (simulates stop_file_watcher)
         {
             let mut guard = state.0.lock().unwrap();
-            *guard = None;
-        }
-
-        // Should still be None
-        {
-            let guard = state.0.lock().unwrap();
-            assert!(guard.is_none());
+            guard.remove("nonexistent-window");
+            assert!(guard.is_empty());
         }
     }
 
