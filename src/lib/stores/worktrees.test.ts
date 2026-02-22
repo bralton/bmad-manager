@@ -11,7 +11,9 @@ import {
   worktreesError,
   worktreeCreating,
   worktreesByStory,
+  currentWorktreeStoryId,
   refreshWorktrees,
+  validateAndRefreshWorktrees,
   setWorktreeCreating,
   resetWorktrees,
 } from './worktrees';
@@ -21,6 +23,8 @@ import type { Worktree } from '$lib/types/worktree';
 vi.mock('$lib/services/worktrees', () => ({
   worktreeApi: {
     listWorktrees: vi.fn(),
+    validateWorktreeBindings: vi.fn(),
+    getCurrentWorktreeStoryId: vi.fn(),
   },
 }));
 
@@ -193,6 +197,91 @@ describe('worktrees store', () => {
       expect(get(worktreesLoading)).toBe(false);
       expect(get(worktreesError)).toBeNull();
       expect(get(worktreeCreating).size).toBe(0);
+    });
+  });
+
+  describe('validateAndRefreshWorktrees', () => {
+    it('calls validateWorktreeBindings then listWorktrees', async () => {
+      const mockWorktrees = [createWorktree()];
+      (worktreeApi.validateWorktreeBindings as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.listWorktrees as ReturnType<typeof vi.fn>).mockResolvedValue(mockWorktrees);
+      (worktreeApi.getCurrentWorktreeStoryId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await validateAndRefreshWorktrees('/test/project');
+
+      expect(worktreeApi.validateWorktreeBindings).toHaveBeenCalledWith('/test/project');
+      expect(worktreeApi.listWorktrees).toHaveBeenCalledWith('/test/project');
+      expect(get(worktrees)).toEqual(mockWorktrees);
+    });
+
+    it('sets loading to true then false', async () => {
+      (worktreeApi.validateWorktreeBindings as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.listWorktrees as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.getCurrentWorktreeStoryId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      const promise = validateAndRefreshWorktrees('/test/project');
+      expect(get(worktreesLoading)).toBe(true);
+
+      await promise;
+      expect(get(worktreesLoading)).toBe(false);
+    });
+
+    it('continues even if some orphaned bindings are found', async () => {
+      const mockWorktrees = [createWorktree()];
+      (worktreeApi.validateWorktreeBindings as ReturnType<typeof vi.fn>).mockResolvedValue(['3-1', '3-2']);
+      (worktreeApi.listWorktrees as ReturnType<typeof vi.fn>).mockResolvedValue(mockWorktrees);
+      (worktreeApi.getCurrentWorktreeStoryId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await validateAndRefreshWorktrees('/test/project');
+
+      expect(get(worktrees)).toEqual(mockWorktrees);
+      expect(get(worktreesError)).toBeNull();
+    });
+
+    it('sets error if validation fails', async () => {
+      (worktreeApi.validateWorktreeBindings as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Validation error'));
+
+      await validateAndRefreshWorktrees('/test/project');
+
+      expect(get(worktreesError)).toBe('Validation error');
+      expect(worktreeApi.listWorktrees).not.toHaveBeenCalled();
+    });
+
+    it('sets currentWorktreeStoryId when project is a worktree', async () => {
+      (worktreeApi.validateWorktreeBindings as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.listWorktrees as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.getCurrentWorktreeStoryId as ReturnType<typeof vi.fn>).mockResolvedValue('3-4');
+
+      await validateAndRefreshWorktrees('/test/project-wt-3-4');
+
+      expect(get(currentWorktreeStoryId)).toBe('3-4');
+    });
+
+    it('sets currentWorktreeStoryId to null when project is main repo', async () => {
+      (worktreeApi.validateWorktreeBindings as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.listWorktrees as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (worktreeApi.getCurrentWorktreeStoryId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await validateAndRefreshWorktrees('/test/main-project');
+
+      expect(get(currentWorktreeStoryId)).toBeNull();
+    });
+  });
+
+  describe('currentWorktreeStoryId store', () => {
+    it('starts as null', () => {
+      expect(get(currentWorktreeStoryId)).toBeNull();
+    });
+
+    it('can be set with story ID', () => {
+      currentWorktreeStoryId.set('3-4');
+      expect(get(currentWorktreeStoryId)).toBe('3-4');
+    });
+
+    it('is reset by resetWorktrees', () => {
+      currentWorktreeStoryId.set('3-4');
+      resetWorktrees();
+      expect(get(currentWorktreeStoryId)).toBeNull();
     });
   });
 });

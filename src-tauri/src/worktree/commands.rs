@@ -1,5 +1,6 @@
 //! Tauri commands for worktree management.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use super::types::{CreateWorktreeOptions, Worktree, WorktreeError};
@@ -126,6 +127,84 @@ pub async fn get_worktree_binding(
 pub async fn get_all_worktree_bindings() -> Result<Vec<WorktreeBinding>, WorktreeError> {
     session_registry::get_all_worktree_bindings()
         .map_err(|e| WorktreeError::DatabaseError(e.to_string()))
+}
+
+/// Gets the story ID for the current worktree, if the project IS a worktree.
+///
+/// Returns None if the project is the main repository (not a worktree)
+/// or if the branch doesn't follow the story/{id}-{slug} pattern.
+#[tauri::command]
+pub async fn get_current_worktree_story_id(
+    project_path: String,
+) -> Result<Option<String>, WorktreeError> {
+    let project_path = PathBuf::from(&project_path);
+
+    // Run in blocking task since it involves filesystem and git operations
+    tokio::task::spawn_blocking(move || {
+        // Check if this is a worktree
+        if !git::is_worktree(&project_path) {
+            return Ok(None);
+        }
+
+        // Get the current branch
+        let branch = git::get_current_branch(&project_path)?;
+
+        // Extract story ID from branch name
+        Ok(branch.and_then(|b| git::extract_story_id_from_branch(&b)))
+    })
+    .await
+    .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))?
+}
+
+/// Validates worktree bindings against actual worktrees on disk.
+///
+/// Compares database bindings against actual worktrees from `git worktree list`.
+/// Removes orphaned bindings where the worktree directory no longer exists.
+/// Also runs `git worktree prune` to clean up Git metadata.
+///
+/// Returns the list of story IDs that were orphaned and cleaned up.
+#[tauri::command]
+pub async fn validate_worktree_bindings(
+    repo_path: String,
+) -> Result<Vec<String>, WorktreeError> {
+    let repo_path_buf = PathBuf::from(&repo_path);
+
+    // Get actual worktrees from git
+    let actual_worktrees = list_worktrees(repo_path.clone()).await?;
+    let actual_paths: HashSet<String> = actual_worktrees
+        .iter()
+        .map(|wt| wt.path.to_string_lossy().to_string())
+        .collect();
+
+    // Get bindings from database
+    let bindings = session_registry::get_all_worktree_bindings()
+        .map_err(|e| WorktreeError::DatabaseError(e.to_string()))?;
+
+    let mut orphaned = Vec::new();
+
+    for binding in bindings {
+        if !actual_paths.contains(&binding.worktree_path) {
+            orphaned.push(binding.story_id.clone());
+            session_registry::remove_worktree_binding(&binding.story_id)
+                .map_err(|e| WorktreeError::DatabaseError(e.to_string()))?;
+        }
+    }
+
+    // Also prune git metadata for stale worktrees
+    let repo_clone = repo_path_buf.clone();
+    tokio::task::spawn_blocking(move || git::prune_worktrees(&repo_clone))
+        .await
+        .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))??;
+
+    if !orphaned.is_empty() {
+        eprintln!(
+            "Cleaned up {} orphaned worktree bindings: {:?}",
+            orphaned.len(),
+            orphaned
+        );
+    }
+
+    Ok(orphaned)
 }
 
 /// Computes the branch name for a worktree.

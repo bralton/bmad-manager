@@ -11,7 +11,7 @@
     refreshSprintStatus,
     resetSprintStatus,
   } from '$lib/stores/stories';
-  import { refreshWorktrees, resetWorktrees } from '$lib/stores/worktrees';
+  import { validateAndRefreshWorktrees, resetWorktrees } from '$lib/stores/worktrees';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
   import type { UnlistenFn } from '@tauri-apps/api/event';
 
@@ -48,7 +48,8 @@
 
     if (projectPath && project?.state === 'fully-initialized') {
       refreshSprintStatus(projectPath);
-      refreshWorktrees(projectPath);
+      // Validate bindings and refresh worktrees on project load (AC #5)
+      validateAndRefreshWorktrees(projectPath);
       // Set up event listeners for sprint status changes
       await setupListeners(projectPath);
     } else {

@@ -13,6 +13,13 @@ import { worktreeApi } from '$lib/services/worktrees';
 export const worktrees = writable<Worktree[]>([]);
 
 /**
+ * If the current project IS a worktree, this contains the story ID.
+ * Used to highlight the current story in the story board.
+ * Null if this is the main repository (not a worktree).
+ */
+export const currentWorktreeStoryId = writable<string | null>(null);
+
+/**
  * Whether a worktree loading operation is in progress.
  */
 export const worktreesLoading = writable<boolean>(false);
@@ -79,6 +86,50 @@ export async function refreshWorktrees(projectPath: string): Promise<void> {
 }
 
 /**
+ * Validates worktree bindings and refreshes the worktrees list.
+ *
+ * This should be called on project initialization to clean up orphaned
+ * bindings (where the worktree directory no longer exists).
+ *
+ * @param projectPath - Absolute path to the project directory
+ */
+export async function validateAndRefreshWorktrees(projectPath: string): Promise<void> {
+  worktreesLoading.set(true);
+  worktreesError.set(null);
+
+  try {
+    // First, validate and clean up orphaned bindings
+    const orphaned = await worktreeApi.validateWorktreeBindings(projectPath);
+    if (orphaned.length > 0) {
+      console.log(`Cleaned up ${orphaned.length} orphaned worktree bindings:`, orphaned);
+    }
+
+    // Then refresh the worktrees list
+    const wtList = await worktreeApi.listWorktrees(projectPath);
+    worktrees.set(wtList);
+
+    // Check if the current project IS a worktree and get its story ID
+    const storyId = await worktreeApi.getCurrentWorktreeStoryId(projectPath);
+    currentWorktreeStoryId.set(storyId);
+  } catch (error) {
+    let message: string;
+    if (error instanceof Error) {
+      message = error.message;
+    } else if (typeof error === 'string') {
+      message = error;
+    } else if (error && typeof error === 'object' && 'message' in error) {
+      message = String((error as { message: unknown }).message);
+    } else {
+      message = 'Failed to load worktrees';
+    }
+    worktreesError.set(message);
+    console.error('Failed to refresh worktrees:', error);
+  } finally {
+    worktreesLoading.set(false);
+  }
+}
+
+/**
  * Sets the creating state for a specific story ID.
  * @param storyId - The story ID
  * @param creating - Whether creation is in progress
@@ -103,4 +154,5 @@ export function resetWorktrees(): void {
   worktreesLoading.set(false);
   worktreesError.set(null);
   worktreeCreating.set(new Map());
+  currentWorktreeStoryId.set(null);
 }

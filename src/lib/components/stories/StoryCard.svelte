@@ -2,9 +2,10 @@
   import { get } from 'svelte/store';
   import { selectedStoryId } from '$lib/stores/stories';
   import { currentProject } from '$lib/stores/project';
-  import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees } from '$lib/stores/worktrees';
+  import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees, currentWorktreeStoryId } from '$lib/stores/worktrees';
   import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
+  import { openWorktreeInNewWindow } from '$lib/services/windows';
   import { KANBAN_COLUMNS, type Story } from '$lib/types/stories';
 
   let { story }: { story: Story } = $props();
@@ -12,6 +13,9 @@
   // Get worktree for this story
   let worktree = $derived($worktreesByStory.get(story.id));
   let isCreating = $derived($worktreeCreating.get(story.id) ?? false);
+
+  // Check if this is the current worktree (AC #4 - highlight current worktree's story)
+  let isCurrentWorktree = $derived($currentWorktreeStoryId === story.id);
 
   // Convert slug to readable title (replace hyphens with spaces, title case)
   let title = $derived.by(() => {
@@ -59,9 +63,13 @@
         duration: 4000,
         action: {
           label: 'Open Window',
-          onClick: () => {
-            // Placeholder - actual implementation in Story 3-5
-            // TODO(Story 3-5): Open worktree in new window
+          onClick: async () => {
+            try {
+              await openWorktreeInNewWindow(createdWorktree.path);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              showErrorToast(`Failed to open window: ${message}`);
+            }
           },
         },
       });
@@ -78,17 +86,28 @@
 
   // Build aria label
   let ariaLabel = $derived(
-    `Story ${displayId}: ${title}, status: ${columnConfig.label}${worktree ? ', has worktree' : ''}`
+    `Story ${displayId}: ${title}, status: ${columnConfig.label}${worktree ? ', has worktree' : ''}${isCurrentWorktree ? ', current' : ''}`
   );
+
+  // Build CSS classes for button
+  let buttonClasses = $derived.by(() => {
+    const base = `w-full text-left bg-gray-800 rounded-lg p-3 border border-gray-700
+      hover:bg-gray-750 hover:border-gray-600 hover:shadow-md
+      focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+      cursor-pointer transition-all min-h-[80px]
+      border-l-2 ${columnConfig.borderColor} relative group`;
+
+    // Add highlight ring for current worktree (AC #4)
+    if (isCurrentWorktree) {
+      return `${base} ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900`;
+    }
+    return base;
+  });
 </script>
 
 <button
   onclick={handleClick}
-  class="w-full text-left bg-gray-800 rounded-lg p-3 border border-gray-700
-    hover:bg-gray-750 hover:border-gray-600 hover:shadow-md
-    focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
-    cursor-pointer transition-all min-h-[80px]
-    border-l-2 {columnConfig.borderColor} relative group"
+  class={buttonClasses}
   aria-label={ariaLabel}
   tabindex="0"
 >

@@ -213,6 +213,91 @@ pub fn is_worktree_dirty(worktree_path: &Path) -> Result<bool, WorktreeError> {
     Ok(!stdout.trim().is_empty())
 }
 
+/// Checks if the given path is a worktree (vs main repo).
+///
+/// Worktrees have `.git` as a FILE containing a path reference,
+/// while main repositories have `.git` as a DIRECTORY.
+pub fn is_worktree(project_path: &Path) -> bool {
+    let git_path = project_path.join(".git");
+    git_path.is_file()
+}
+
+/// Gets the current branch name for a repository or worktree.
+pub fn get_current_branch(project_path: &Path) -> Result<Option<String>, WorktreeError> {
+    let output = run_git(&["rev-parse", "--abbrev-ref", "HEAD"], project_path)?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() || branch == "HEAD" {
+        // Detached HEAD state
+        Ok(None)
+    } else {
+        Ok(Some(branch))
+    }
+}
+
+/// Extracts story ID from a worktree branch name.
+///
+/// Branch pattern: `story/{epic}-{story}-{slug}` -> returns Some("{epic}-{story}")
+/// Examples:
+/// - "story/3-4-worktree-binding" -> Some("3-4")
+/// - "story/1-5-2-terminal-fix" -> Some("1-5-2")
+/// - "main" -> None
+/// - "feature/something" -> None
+pub fn extract_story_id_from_branch(branch: &str) -> Option<String> {
+    let prefix = "story/";
+    if !branch.starts_with(prefix) {
+        return None;
+    }
+
+    let after_prefix = &branch[prefix.len()..];
+    // Find the parts: could be "3-4-slug" or "1-5-2-slug"
+    // We need to extract the numeric prefix (epic-story or epic-story-substory)
+    let parts: Vec<&str> = after_prefix.split('-').collect();
+
+    if parts.len() < 2 {
+        return None;
+    }
+
+    // Check if we have a sub-story (3 numeric parts) or regular story (2 numeric parts)
+    // Format: {epic}-{story}[-{substory}]-{slug...}
+    let mut numeric_parts = Vec::new();
+    for part in &parts {
+        if part.chars().all(|c| c.is_ascii_digit()) {
+            numeric_parts.push(*part);
+        } else {
+            break;
+        }
+    }
+
+    if numeric_parts.len() >= 2 {
+        Some(numeric_parts.join("-"))
+    } else {
+        None
+    }
+}
+
+/// Prunes stale worktree metadata from the repository.
+///
+/// Runs `git worktree prune` to clean up administrative files for worktrees
+/// that no longer exist on disk.
+pub fn prune_worktrees(repo_path: &Path) -> Result<(), WorktreeError> {
+    let output = run_git(&["worktree", "prune"], repo_path)?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(WorktreeError::GitError(format!(
+            "git worktree prune failed: {}",
+            stderr.trim()
+        )));
+    }
+
+    Ok(())
+}
+
 /// Gets the default branch for a repository.
 ///
 /// Tries to detect the default branch (main, master, etc.) by checking
@@ -473,5 +558,147 @@ mod tests {
             .current_dir(dir.path())
             .output()
             .unwrap();
+    }
+
+    #[test]
+    fn test_prune_worktrees() {
+        let dir = create_test_repo();
+
+        // Prune should succeed on a clean repo
+        let result = prune_worktrees(dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_prune_worktrees_cleans_stale_entries() {
+        let dir = create_test_repo();
+        let worktree_path = dir.path().parent().unwrap().join("wt-to-prune");
+
+        // Create a worktree
+        create_worktree(
+            dir.path(),
+            &worktree_path,
+            "feature/prune-test",
+            None,
+        )
+        .unwrap();
+
+        // Manually delete the worktree directory (simulating manual deletion)
+        fs::remove_dir_all(&worktree_path).unwrap();
+
+        // Git should still list the worktree entry
+        let worktrees_before = list_worktrees(dir.path()).unwrap();
+        // Note: git may still list it or may not depending on implementation details
+
+        // Prune should clean up the stale entry
+        let result = prune_worktrees(dir.path());
+        assert!(result.is_ok());
+
+        // After prune, only main worktree should remain
+        let worktrees_after = list_worktrees(dir.path()).unwrap();
+        assert_eq!(worktrees_after.len(), 1);
+        assert!(worktrees_after[0].is_main);
+    }
+
+    #[test]
+    fn test_is_worktree_main_repo() {
+        let dir = create_test_repo();
+        // Main repo has .git as a directory
+        assert!(!is_worktree(dir.path()));
+    }
+
+    #[test]
+    fn test_is_worktree_actual_worktree() {
+        let dir = create_test_repo();
+        let worktree_path = dir.path().parent().unwrap().join("wt-is-worktree-test");
+
+        create_worktree(
+            dir.path(),
+            &worktree_path,
+            "story/3-4-test",
+            None,
+        )
+        .unwrap();
+
+        // Worktree has .git as a file
+        assert!(is_worktree(&worktree_path));
+
+        // Clean up
+        Command::new("git")
+            .args(["worktree", "remove", worktree_path.to_str().unwrap()])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_get_current_branch_main_repo() {
+        let dir = create_test_repo();
+        let branch = get_current_branch(dir.path()).unwrap();
+        // Initial branch could be "main" or "master" depending on git config
+        assert!(branch.is_some());
+    }
+
+    #[test]
+    fn test_get_current_branch_worktree() {
+        let dir = create_test_repo();
+        let worktree_path = dir.path().parent().unwrap().join("wt-branch-test");
+
+        create_worktree(
+            dir.path(),
+            &worktree_path,
+            "story/3-4-test-feature",
+            None,
+        )
+        .unwrap();
+
+        let branch = get_current_branch(&worktree_path).unwrap();
+        assert_eq!(branch, Some("story/3-4-test-feature".to_string()));
+
+        // Clean up
+        Command::new("git")
+            .args(["worktree", "remove", worktree_path.to_str().unwrap()])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_extract_story_id_from_branch_valid() {
+        assert_eq!(
+            extract_story_id_from_branch("story/3-4-worktree-binding"),
+            Some("3-4".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_story_id_from_branch_substory() {
+        assert_eq!(
+            extract_story_id_from_branch("story/1-5-2-terminal-fix"),
+            Some("1-5-2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_story_id_from_branch_not_story() {
+        assert_eq!(extract_story_id_from_branch("main"), None);
+        assert_eq!(extract_story_id_from_branch("feature/something"), None);
+        assert_eq!(extract_story_id_from_branch("develop"), None);
+    }
+
+    #[test]
+    fn test_extract_story_id_from_branch_invalid_format() {
+        // No slug after story ID
+        assert_eq!(extract_story_id_from_branch("story/"), None);
+        // Only one numeric part
+        assert_eq!(extract_story_id_from_branch("story/3-slug"), None);
+    }
+
+    #[test]
+    fn test_extract_story_id_from_branch_complex_slug() {
+        assert_eq!(
+            extract_story_id_from_branch("story/3-4-my-complex-feature-name"),
+            Some("3-4".to_string())
+        );
     }
 }

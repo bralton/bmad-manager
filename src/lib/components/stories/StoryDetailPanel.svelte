@@ -6,6 +6,7 @@
   import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees } from '$lib/stores/worktrees';
   import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
+  import { openWorktreeInNewWindow } from '$lib/services/windows';
 
   let {
     story,
@@ -140,9 +141,13 @@
         duration: 4000,
         action: {
           label: 'Open Window',
-          onClick: () => {
-            // Placeholder - actual implementation in Story 3-5
-            console.log('Open worktree window:', createdWorktree.path);
+          onClick: async () => {
+            try {
+              await openWorktreeInNewWindow(createdWorktree.path);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              showErrorToast(`Failed to open window: ${message}`);
+            }
           },
         },
       });
@@ -157,9 +162,18 @@
     }
   }
 
-  function handleOpenInNewWindow() {
-    // Placeholder - actual implementation in Story 3-5
-    showSuccessToast('Opening in new window... (Story 3-5)', { icon: '🪟' });
+  async function handleOpenInNewWindow() {
+    if (!worktree) {
+      showErrorToast('No worktree to open');
+      return;
+    }
+
+    try {
+      await openWorktreeInNewWindow(worktree.path);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showErrorToast(`Failed to open window: ${message}`);
+    }
   }
 
   function handleCleanUpWorktree() {

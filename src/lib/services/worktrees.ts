@@ -110,4 +110,29 @@ export const worktreeApi = {
    * @returns Array of all WorktreeBinding entries
    */
   getAllWorktreeBindings: () => invoke<WorktreeBinding[]>('get_all_worktree_bindings'),
+
+  /**
+   * Validates worktree bindings against actual worktrees on disk.
+   *
+   * Compares database bindings against actual worktrees and removes
+   * orphaned bindings. Also runs `git worktree prune` to clean up
+   * Git metadata for stale worktrees.
+   *
+   * @param repoPath - Absolute path to the repository
+   * @returns Array of story IDs that were orphaned and cleaned up
+   */
+  validateWorktreeBindings: (repoPath: string) =>
+    invoke<string[]>('validate_worktree_bindings', { repoPath }),
+
+  /**
+   * Gets the story ID for the current worktree, if the project IS a worktree.
+   *
+   * Returns null if the project is the main repository (not a worktree)
+   * or if the branch doesn't follow the story/{id}-{slug} pattern.
+   *
+   * @param projectPath - Absolute path to the project directory
+   * @returns Story ID (e.g., "3-4") if this is a worktree, null otherwise
+   */
+  getCurrentWorktreeStoryId: (projectPath: string) =>
+    invoke<string | null>('get_current_worktree_story_id', { projectPath }),
 };

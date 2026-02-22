@@ -183,8 +183,6 @@ pub fn remove_worktree_binding_by_path(worktree_path: &str) -> Result<bool, DbEr
 
 /// Removes a worktree binding by story ID.
 /// Returns true if a binding was removed.
-/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
-#[allow(dead_code)]
 pub fn remove_worktree_binding(story_id: &str) -> Result<bool, DbError> {
     let db = get_db()?;
     let conn = db.conn.lock().unwrap();

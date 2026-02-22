@@ -30,6 +30,9 @@
     sendSessionInput,
     generateSessionName,
   } from '$lib/services/process';
+  import { api } from '$lib/services/tauri';
+  import { projectLoading, projectError } from '$lib/stores/project';
+  import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
   let selectedId = $derived($currentSessionId);
   let allSessions = $derived(Array.from($sessions.values()));
@@ -124,9 +127,47 @@
     }
   }
 
+  /**
+   * Initializes a project from URL params (for new windows).
+   * Called when opened with ?project=/path/to/project
+   */
+  async function initializeFromUrlParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectPath = urlParams.get('project');
+
+    if (projectPath) {
+      const decodedPath = decodeURIComponent(projectPath);
+
+      projectLoading.set(true);
+      projectError.set(null);
+
+      try {
+        const loadedProject = await api.openProject(decodedPath);
+        currentProject.set(loadedProject);
+
+        // Update window title to show project name
+        try {
+          const appWindow = getCurrentWebviewWindow();
+          await appWindow.setTitle(`BMAD Manager - ${loadedProject.name}`);
+        } catch (titleError) {
+          console.warn('Failed to set window title:', titleError);
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        projectError.set(message);
+        console.error('Failed to load project from URL params:', message);
+      } finally {
+        projectLoading.set(false);
+      }
+    }
+  }
+
   // Load settings on mount and set up global keyboard shortcut
   onMount(() => {
     loadSettings();
+
+    // Initialize project from URL params if provided (AC #6 - new window support)
+    initializeFromUrlParams();
 
     // Global keyboard shortcut handler for command palette
     // Uses capture phase to intercept before xterm.js

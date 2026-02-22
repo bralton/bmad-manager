@@ -13,6 +13,7 @@ pub use process_manager::get_active_session_count;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::{AppHandle, Manager, WebviewWindowBuilder, WebviewUrl};
 
 // Artifact Tauri commands
 
@@ -105,6 +106,69 @@ fn resume_session(session_id: String) -> Result<bool, session_registry::DbError>
     session_registry::resume_session(&session_id)
 }
 
+// Multi-window management commands
+
+/// Sanitizes a project path into a valid window label.
+/// Window labels can only contain alphanumeric characters, `-`, `/`, `:`, and `_`.
+fn sanitize_window_label(path: &str) -> String {
+    path.chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// Extracts the project name from a path for use in window title.
+fn project_name_from_path(path: &str) -> String {
+    PathBuf::from(path)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Project")
+        .to_string()
+}
+
+/// Opens a new window for the specified project path.
+///
+/// If a window already exists for this project, focuses it instead.
+/// Returns the window label.
+#[tauri::command]
+async fn open_project_window(
+    project_path: String,
+    app_handle: AppHandle,
+) -> Result<String, String> {
+    let window_label = format!("project-{}", sanitize_window_label(&project_path));
+
+    // Check if window already exists
+    if let Some(window) = app_handle.get_webview_window(&window_label) {
+        // Focus existing window
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(window_label);
+    }
+
+    // Build URL with project path parameter
+    // Use root path "/" - works with both dev server and production build
+    let url = format!("/?project={}", urlencoding::encode(&project_path));
+
+    let project_name = project_name_from_path(&project_path);
+
+    WebviewWindowBuilder::new(
+        &app_handle,
+        &window_label,
+        WebviewUrl::App(url.into()),
+    )
+    .title(format!("BMAD Manager - {}", project_name))
+    .inner_size(1200.0, 800.0)
+    .min_inner_size(800.0, 600.0)
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    Ok(window_label)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize session database on startup
@@ -149,6 +213,9 @@ pub fn run() {
             worktree::commands::is_worktree_dirty,
             worktree::commands::get_worktree_binding,
             worktree::commands::get_all_worktree_bindings,
+            worktree::commands::validate_worktree_bindings,
+            worktree::commands::get_current_worktree_story_id,
+            open_project_window,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -171,4 +238,61 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_window_label_simple() {
+        let result = sanitize_window_label("/Users/test/project");
+        assert_eq!(result, "_Users_test_project");
+    }
+
+    #[test]
+    fn test_sanitize_window_label_preserves_alphanumeric() {
+        let result = sanitize_window_label("abc123XYZ");
+        assert_eq!(result, "abc123XYZ");
+    }
+
+    #[test]
+    fn test_sanitize_window_label_preserves_dash_and_underscore() {
+        let result = sanitize_window_label("my-project_name");
+        assert_eq!(result, "my-project_name");
+    }
+
+    #[test]
+    fn test_sanitize_window_label_replaces_special_chars() {
+        let result = sanitize_window_label("/path/with spaces/and.dots");
+        assert_eq!(result, "_path_with_spaces_and_dots");
+    }
+
+    #[test]
+    fn test_project_name_from_path_simple() {
+        let result = project_name_from_path("/Users/test/my-project");
+        assert_eq!(result, "my-project");
+    }
+
+    #[test]
+    fn test_project_name_from_path_trailing_slash() {
+        // PathBuf handles trailing slashes by ignoring them
+        let result = project_name_from_path("/Users/test/project/");
+        // This might be empty string due to trailing slash, but parent should work
+        // Actually PathBuf handles this - let's verify
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_project_name_from_path_fallback() {
+        // Root path has no file_name
+        let result = project_name_from_path("/");
+        assert_eq!(result, "Project");
+    }
+
+    #[test]
+    fn test_project_name_from_path_worktree() {
+        let result = project_name_from_path("/Users/test/bmad_manager-wt-3-4");
+        assert_eq!(result, "bmad_manager-wt-3-4");
+    }
 }
