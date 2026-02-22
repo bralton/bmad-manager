@@ -15,6 +15,7 @@ import {
   resetSprintStatus,
 } from '$lib/stores/stories';
 import { currentProject } from '$lib/stores/project';
+import { resetWorktrees } from '$lib/stores/worktrees';
 import type { SprintStatus } from '$lib/types/stories';
 import type { Project } from '$lib/types/project';
 
@@ -37,6 +38,18 @@ vi.mock('$lib/services/events', () => ({
   setupEventListeners: vi.fn().mockResolvedValue([]),
 }));
 
+// Mock the worktrees service
+vi.mock('$lib/services/worktrees', () => ({
+  worktreeApi: {
+    listWorktrees: vi.fn().mockResolvedValue([]),
+    createWorktree: vi.fn(),
+    getWorktreeForStory: vi.fn(),
+    isWorktreeDirty: vi.fn(),
+    getWorktreeBinding: vi.fn(),
+    getAllWorktreeBindings: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -47,6 +60,7 @@ describe('StoryBoardContainer', () => {
 
   beforeEach(() => {
     resetSprintStatus();
+    resetWorktrees();
     vi.clearAllMocks();
 
     // Setup currentProject mock

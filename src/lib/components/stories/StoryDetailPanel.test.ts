@@ -1,22 +1,51 @@
 /**
  * Unit tests for StoryDetailPanel component.
- * Tests rendering, close functionality, and accessibility.
+ * Tests rendering, close functionality, worktree features, and accessibility.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import StoryDetailPanel from './StoryDetailPanel.svelte';
+import { worktrees, worktreeCreating, resetWorktrees, setWorktreeCreating } from '$lib/stores/worktrees';
 import type { Story, Epic } from '$lib/types/stories';
+
+// Mock the worktrees service
+vi.mock('$lib/services/worktrees', () => ({
+  worktreeApi: {
+    createWorktree: vi.fn(),
+    listWorktrees: vi.fn(),
+  },
+  parseWorktreeError: vi.fn((error: unknown) => 'Failed to create worktree'),
+}));
+
+// Mock the project store
+vi.mock('$lib/stores/project', () => ({
+  currentProject: {
+    subscribe: vi.fn((fn) => {
+      fn({ path: '/test/project', state: 'fully-initialized' });
+      return () => {};
+    }),
+  },
+}));
+
+// Mock the UI store
+vi.mock('$lib/stores/ui', () => ({
+  showSuccessToast: vi.fn(),
+  showErrorToast: vi.fn(),
+}));
 
 describe('StoryDetailPanel', () => {
   let onCloseMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     onCloseMock = vi.fn();
+    resetWorktrees();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetWorktrees();
   });
 
   const createStory = (overrides: Partial<Story> = {}): Story => ({
@@ -85,11 +114,13 @@ describe('StoryDetailPanel', () => {
       expect(screen.getByText('3-2-story-board-ui-kanban')).toBeInTheDocument();
     });
 
-    it('displays actions placeholder', () => {
+    it('displays worktree section when no worktree exists', () => {
       const story = createStory();
       render(StoryDetailPanel, { props: { story, epic: createEpic(), onClose: onCloseMock } });
 
-      expect(screen.getByText('Worktree actions coming in Story 3-4')).toBeInTheDocument();
+      expect(screen.getByText('Worktree')).toBeInTheDocument();
+      expect(screen.getByText('No worktree exists for this story.')).toBeInTheDocument();
+      expect(screen.getByText('Create Worktree')).toBeInTheDocument();
     });
 
     it('handles null epic gracefully', () => {
@@ -208,6 +239,98 @@ describe('StoryDetailPanel', () => {
       render(StoryDetailPanel, { props: { story, epic, onClose: onCloseMock } });
 
       expect(screen.getByText(`(${expectedLabel})`)).toBeInTheDocument();
+    });
+  });
+
+  describe('worktree features', () => {
+    it('displays worktree path when worktree exists', () => {
+      const story = createStory({ id: '3-3-worktree-test' });
+      worktrees.set([
+        {
+          path: '/test/project-wt-3-3',
+          branch: 'story/3-3-worktree-test',
+          head: 'abc123',
+          storyId: '3-3-worktree-test',
+          locked: false,
+          isMain: false,
+        },
+      ]);
+      render(StoryDetailPanel, { props: { story, epic: createEpic(), onClose: onCloseMock } });
+
+      expect(screen.getByText('/test/project-wt-3-3')).toBeInTheDocument();
+    });
+
+    it('displays worktree branch when worktree exists', () => {
+      const story = createStory({ id: '3-3-worktree-test' });
+      worktrees.set([
+        {
+          path: '/test/project-wt-3-3',
+          branch: 'story/3-3-worktree-test',
+          head: 'abc123',
+          storyId: '3-3-worktree-test',
+          locked: false,
+          isMain: false,
+        },
+      ]);
+      render(StoryDetailPanel, { props: { story, epic: createEpic(), onClose: onCloseMock } });
+
+      expect(screen.getByText('story/3-3-worktree-test')).toBeInTheDocument();
+    });
+
+    it('shows Open in New Window button when worktree exists', () => {
+      const story = createStory({ id: '3-3-worktree-test' });
+      worktrees.set([
+        {
+          path: '/test/project-wt-3-3',
+          branch: 'story/3-3-worktree-test',
+          head: 'abc123',
+          storyId: '3-3-worktree-test',
+          locked: false,
+          isMain: false,
+        },
+      ]);
+      render(StoryDetailPanel, { props: { story, epic: createEpic(), onClose: onCloseMock } });
+
+      expect(screen.getByText('Open in New Window')).toBeInTheDocument();
+    });
+
+    it('shows Clean Up Worktree button when worktree exists', () => {
+      const story = createStory({ id: '3-3-worktree-test' });
+      worktrees.set([
+        {
+          path: '/test/project-wt-3-3',
+          branch: 'story/3-3-worktree-test',
+          head: 'abc123',
+          storyId: '3-3-worktree-test',
+          locked: false,
+          isMain: false,
+        },
+      ]);
+      render(StoryDetailPanel, { props: { story, epic: createEpic(), onClose: onCloseMock } });
+
+      expect(screen.getByText('Clean Up Worktree')).toBeInTheDocument();
+    });
+
+    it('shows loading spinner during worktree creation', () => {
+      const story = createStory({ id: '3-3-creating' });
+      setWorktreeCreating('3-3-creating', true);
+      const { container } = render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Check for the spinner animation class
+      const spinner = container.querySelector('.animate-spin');
+      expect(spinner).toBeInTheDocument();
+    });
+
+    it('shows "Creating worktree..." message during creation', () => {
+      const story = createStory({ id: '3-3-creating' });
+      setWorktreeCreating('3-3-creating', true);
+      render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      expect(screen.getByText('Creating worktree...')).toBeInTheDocument();
     });
   });
 });

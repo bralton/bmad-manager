@@ -7,6 +7,7 @@ mod process_manager;
 mod project;
 mod session_registry;
 mod settings;
+mod worktree;
 
 pub use process_manager::get_active_session_count;
 
@@ -142,6 +143,12 @@ pub fn run() {
             get_sprint_status,
             file_watcher::start_file_watcher,
             file_watcher::stop_file_watcher,
+            worktree::commands::create_worktree,
+            worktree::commands::list_worktrees,
+            worktree::commands::get_worktree_for_story,
+            worktree::commands::is_worktree_dirty,
+            worktree::commands::get_worktree_binding,
+            worktree::commands::get_all_worktree_bindings,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

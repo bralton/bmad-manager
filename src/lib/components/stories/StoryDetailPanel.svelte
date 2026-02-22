@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { KANBAN_COLUMNS, type Story, type Epic } from '$lib/types/stories';
+  import { currentProject } from '$lib/stores/project';
+  import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees } from '$lib/stores/worktrees';
+  import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
+  import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
 
   let {
     story,
@@ -11,6 +16,10 @@
     epic: Epic | null | undefined;
     onClose: () => void;
   } = $props();
+
+  // Get worktree for this story
+  let worktree = $derived($worktreesByStory.get(story.id));
+  let isCreating = $derived($worktreeCreating.get(story.id) ?? false);
 
   // Convert slug to readable title
   let title = $derived.by(() => {
@@ -111,6 +120,52 @@
       onClose();
     }
   }
+
+  async function handleCreateWorktree() {
+    const project = get(currentProject);
+    if (!project) {
+      showErrorToast('No project loaded');
+      return;
+    }
+
+    setWorktreeCreating(story.id, true);
+
+    try {
+      const createdWorktree = await worktreeApi.createWorktree(project.path, {
+        storyId: story.id,
+        storySlug: story.slug,
+      });
+
+      showSuccessToast(`Worktree created: ${createdWorktree.branch}`, {
+        duration: 4000,
+        action: {
+          label: 'Open Window',
+          onClick: () => {
+            // Placeholder - actual implementation in Story 3-5
+            console.log('Open worktree window:', createdWorktree.path);
+          },
+        },
+      });
+
+      // Refresh worktrees to update the store
+      await refreshWorktrees(project.path);
+    } catch (error) {
+      const message = parseWorktreeError(error);
+      showErrorToast(message);
+    } finally {
+      setWorktreeCreating(story.id, false);
+    }
+  }
+
+  function handleOpenInNewWindow() {
+    // Placeholder - actual implementation in Story 3-5
+    showSuccessToast('Opening in new window... (Story 3-5)', { icon: '🪟' });
+  }
+
+  function handleCleanUpWorktree() {
+    // Placeholder - actual implementation in Story 3-6
+    showSuccessToast('Cleanup flow... (Story 3-6)', { icon: '🧹' });
+  }
 </script>
 
 <!-- Backdrop -->
@@ -181,12 +236,82 @@
         <p class="text-white font-mono text-sm">{story.id}</p>
       </div>
 
-      <!-- Actions placeholder -->
+      <!-- Worktree Section -->
       <div class="pt-4 border-t border-gray-700">
-        <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Actions</h3>
-        <p class="text-gray-500 text-sm italic">
-          Worktree actions coming in Story 3-4
-        </p>
+        <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Worktree</h3>
+
+        {#if isCreating}
+          <div class="flex items-center gap-2 text-indigo-300 text-sm">
+            <svg
+              class="animate-spin h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span>Creating worktree...</span>
+          </div>
+        {:else if worktree}
+          <!-- Worktree exists -->
+          <div class="space-y-3">
+            <div class="text-sm">
+              <div class="text-gray-400 mb-1">Path:</div>
+              <div class="text-white font-mono text-xs bg-gray-900 p-2 rounded break-all">
+                {worktree.path}
+              </div>
+            </div>
+            <div class="text-sm">
+              <div class="text-gray-400 mb-1">Branch:</div>
+              <div class="text-indigo-300 font-mono text-xs">
+                {worktree.branch}
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button
+                onclick={handleOpenInNewWindow}
+                class="flex-1 px-3 py-2 text-sm rounded bg-indigo-600 text-white
+                  hover:bg-indigo-500 transition-colors"
+              >
+                Open in New Window
+              </button>
+              <button
+                onclick={handleCleanUpWorktree}
+                class="flex-1 px-3 py-2 text-sm rounded bg-gray-700 text-gray-300
+                  hover:bg-gray-600 hover:text-white transition-colors"
+              >
+                Clean Up Worktree
+              </button>
+            </div>
+          </div>
+        {:else}
+          <!-- No worktree -->
+          <div class="text-sm">
+            <p class="text-gray-400 mb-3">No worktree exists for this story.</p>
+            <button
+              onclick={handleCreateWorktree}
+              class="w-full px-3 py-2 text-sm rounded bg-indigo-600 text-white
+                hover:bg-indigo-500 transition-colors flex items-center justify-center gap-2"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Create Worktree
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

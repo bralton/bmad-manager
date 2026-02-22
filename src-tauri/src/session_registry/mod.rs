@@ -5,7 +5,7 @@
 
 mod db;
 
-pub use db::{DbError, SessionRecord, SessionStatus};
+pub use db::{DbError, SessionRecord, SessionStatus, WorktreeBinding};
 
 use chrono::Utc;
 use rusqlite::Connection;
@@ -135,6 +135,60 @@ pub fn resume_session(id: &str) -> Result<bool, DbError> {
     let db = get_db()?;
     let conn = db.conn.lock().unwrap();
     db::resume_session(&conn, id)
+}
+
+// ============================================================================
+// Worktree Binding Functions
+// ============================================================================
+
+/// Saves a worktree binding to the database.
+pub fn save_worktree_binding(binding: &WorktreeBinding) -> Result<(), DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::save_worktree_binding(&conn, binding)
+}
+
+/// Gets a worktree binding by story ID.
+pub fn get_worktree_binding(story_id: &str) -> Result<Option<WorktreeBinding>, DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::get_worktree_binding(&conn, story_id)
+}
+
+/// Gets all worktree bindings from the database.
+pub fn get_all_worktree_bindings() -> Result<Vec<WorktreeBinding>, DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::get_all_worktree_bindings(&conn)
+}
+
+/// Gets a worktree binding by worktree path.
+/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
+#[allow(dead_code)]
+pub fn get_worktree_binding_by_path(worktree_path: &str) -> Result<Option<WorktreeBinding>, DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::get_worktree_binding_by_path(&conn, worktree_path)
+}
+
+/// Removes a worktree binding by worktree path.
+/// Returns true if a binding was removed.
+/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
+#[allow(dead_code)]
+pub fn remove_worktree_binding_by_path(worktree_path: &str) -> Result<bool, DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::remove_worktree_binding_by_path(&conn, worktree_path)
+}
+
+/// Removes a worktree binding by story ID.
+/// Returns true if a binding was removed.
+/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
+#[allow(dead_code)]
+pub fn remove_worktree_binding(story_id: &str) -> Result<bool, DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::remove_worktree_binding(&conn, story_id)
 }
 
 #[cfg(test)]

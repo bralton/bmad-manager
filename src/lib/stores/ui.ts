@@ -50,6 +50,14 @@ export function closeCommandPalette() {
 }
 
 /**
+ * Toast action button.
+ */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+/**
  * Toast notification data.
  */
 export interface Toast {
@@ -57,6 +65,18 @@ export interface Toast {
   message: string;
   icon?: string;
   duration?: number;
+  variant?: 'success' | 'error' | 'info';
+  action?: ToastAction;
+}
+
+/**
+ * Options for showing a toast.
+ */
+export interface ShowToastOptions {
+  icon?: string;
+  duration?: number;
+  variant?: 'success' | 'error' | 'info';
+  action?: ToastAction;
 }
 
 /**
@@ -67,15 +87,54 @@ export const toasts = writable<Toast[]>([]);
 /**
  * Shows a toast notification.
  * @param message - The message to display
- * @param icon - Optional icon (defaults to ⚡)
- * @param duration - Auto-dismiss duration in ms (defaults to 2000)
+ * @param iconOrOptions - Optional icon string (legacy) or ShowToastOptions object
+ * @param legacyDuration - Optional duration for legacy signature
  */
-export function showToast(message: string, icon = '⚡', duration = 2000) {
+export function showToast(
+  message: string,
+  iconOrOptions?: string | ShowToastOptions,
+  legacyDuration?: number
+) {
+  // Handle legacy signature: showToast(message, icon, duration)
+  let options: ShowToastOptions;
+  if (typeof iconOrOptions === 'string') {
+    options = {
+      icon: iconOrOptions,
+      duration: legacyDuration ?? 2000,
+    };
+  } else {
+    options = iconOrOptions ?? {};
+  }
+
+  const {
+    icon = '⚡',
+    duration = 2000,
+    variant = 'info',
+    action,
+  } = options;
   const id = crypto.randomUUID();
-  toasts.update((t) => [...t, { id, message, icon, duration }]);
+  toasts.update((t) => [...t, { id, message, icon, duration, variant, action }]);
+
+  // Don't auto-dismiss if there's an action button (user needs time to click)
+  const actualDuration = action ? Math.max(duration, 4000) : duration;
+
   setTimeout(() => {
     toasts.update((t) => t.filter((toast) => toast.id !== id));
-  }, duration);
+  }, actualDuration);
+}
+
+/**
+ * Shows a success toast.
+ */
+export function showSuccessToast(message: string, options: Omit<ShowToastOptions, 'variant'> = {}) {
+  showToast(message, { ...options, variant: 'success', icon: options.icon ?? '✓' });
+}
+
+/**
+ * Shows an error toast.
+ */
+export function showErrorToast(message: string, options: Omit<ShowToastOptions, 'variant'> = {}) {
+  showToast(message, { ...options, variant: 'error', icon: options.icon ?? '✕', duration: options.duration ?? 4000 });
 }
 
 /**

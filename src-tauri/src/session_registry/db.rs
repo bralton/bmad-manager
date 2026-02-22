@@ -130,6 +130,22 @@ pub fn init_db(path: &Path) -> Result<Connection, DbError> {
         [],
     )?;
 
+    // Create worktree_bindings table for story-to-worktree associations
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS worktree_bindings (
+            story_id TEXT PRIMARY KEY,
+            worktree_path TEXT NOT NULL UNIQUE,
+            branch_name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_worktree_bindings_path ON worktree_bindings(worktree_path)",
+        [],
+    )?;
+
     Ok(conn)
 }
 
@@ -338,6 +354,137 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
             eprintln!("Warning: Failed to parse datetime '{}': {}. Using current time.", s, e);
             Utc::now()
         })
+}
+
+// ============================================================================
+// Worktree Binding Operations
+// ============================================================================
+
+/// A stored binding between a story and its worktree.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorktreeBinding {
+    /// Story ID (primary key).
+    pub story_id: String,
+    /// Path to the worktree directory.
+    pub worktree_path: String,
+    /// Branch name.
+    pub branch_name: String,
+    /// When the binding was created.
+    pub created_at: String,
+}
+
+/// Saves or updates a worktree binding in the database.
+pub fn save_worktree_binding(conn: &Connection, binding: &WorktreeBinding) -> Result<(), DbError> {
+    conn.execute(
+        "INSERT OR REPLACE INTO worktree_bindings (story_id, worktree_path, branch_name, created_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            binding.story_id,
+            binding.worktree_path,
+            binding.branch_name,
+            binding.created_at,
+        ],
+    )?;
+    Ok(())
+}
+
+/// Gets a worktree binding by story ID.
+pub fn get_worktree_binding(
+    conn: &Connection,
+    story_id: &str,
+) -> Result<Option<WorktreeBinding>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT story_id, worktree_path, branch_name, created_at
+         FROM worktree_bindings
+         WHERE story_id = ?1",
+    )?;
+
+    let binding = stmt
+        .query_row(params![story_id], |row| {
+            Ok(WorktreeBinding {
+                story_id: row.get(0)?,
+                worktree_path: row.get(1)?,
+                branch_name: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })
+        .optional()?;
+
+    Ok(binding)
+}
+
+/// Gets all worktree bindings from the database.
+pub fn get_all_worktree_bindings(conn: &Connection) -> Result<Vec<WorktreeBinding>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT story_id, worktree_path, branch_name, created_at
+         FROM worktree_bindings
+         ORDER BY created_at DESC",
+    )?;
+
+    let bindings = stmt
+        .query_map([], |row| {
+            Ok(WorktreeBinding {
+                story_id: row.get(0)?,
+                worktree_path: row.get(1)?,
+                branch_name: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?
+        .collect::<SqliteResult<Vec<_>>>()?;
+
+    Ok(bindings)
+}
+
+/// Gets a worktree binding by worktree path.
+/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
+#[allow(dead_code)]
+pub fn get_worktree_binding_by_path(
+    conn: &Connection,
+    worktree_path: &str,
+) -> Result<Option<WorktreeBinding>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT story_id, worktree_path, branch_name, created_at
+         FROM worktree_bindings
+         WHERE worktree_path = ?1",
+    )?;
+
+    let binding = stmt
+        .query_row(params![worktree_path], |row| {
+            Ok(WorktreeBinding {
+                story_id: row.get(0)?,
+                worktree_path: row.get(1)?,
+                branch_name: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })
+        .optional()?;
+
+    Ok(binding)
+}
+
+/// Removes a worktree binding by worktree path.
+/// Returns true if a binding was removed.
+/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
+#[allow(dead_code)]
+pub fn remove_worktree_binding_by_path(conn: &Connection, worktree_path: &str) -> Result<bool, DbError> {
+    let rows_affected = conn.execute(
+        "DELETE FROM worktree_bindings WHERE worktree_path = ?1",
+        params![worktree_path],
+    )?;
+    Ok(rows_affected > 0)
+}
+
+/// Removes a worktree binding by story ID.
+/// Returns true if a binding was removed.
+/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
+#[allow(dead_code)]
+pub fn remove_worktree_binding(conn: &Connection, story_id: &str) -> Result<bool, DbError> {
+    let rows_affected = conn.execute(
+        "DELETE FROM worktree_bindings WHERE story_id = ?1",
+        params![story_id],
+    )?;
+    Ok(rows_affected > 0)
 }
 
 #[cfg(test)]
@@ -632,5 +779,115 @@ mod tests {
 
         // Session should still exist
         assert_eq!(get_session_count(&conn).unwrap(), 1);
+    }
+
+    // ========================================================================
+    // Worktree Binding Tests
+    // ========================================================================
+
+    fn create_test_binding(story_id: &str) -> WorktreeBinding {
+        WorktreeBinding {
+            story_id: story_id.to_string(),
+            worktree_path: format!("/test/project-wt-{}", story_id),
+            branch_name: format!("story/{}-test", story_id),
+            created_at: Utc::now().to_rfc3339(),
+        }
+    }
+
+    #[test]
+    fn test_save_and_get_worktree_binding() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let binding = create_test_binding("3-3");
+        save_worktree_binding(&conn, &binding).unwrap();
+
+        let retrieved = get_worktree_binding(&conn, "3-3").unwrap();
+        assert!(retrieved.is_some());
+        let retrieved = retrieved.unwrap();
+        assert_eq!(retrieved.story_id, "3-3");
+        assert_eq!(retrieved.worktree_path, "/test/project-wt-3-3");
+        assert_eq!(retrieved.branch_name, "story/3-3-test");
+    }
+
+    #[test]
+    fn test_get_worktree_binding_not_found() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let result = get_worktree_binding(&conn, "nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_all_worktree_bindings() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let binding1 = create_test_binding("1-1");
+        let binding2 = create_test_binding("2-2");
+        save_worktree_binding(&conn, &binding1).unwrap();
+        save_worktree_binding(&conn, &binding2).unwrap();
+
+        let all = get_all_worktree_bindings(&conn).unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_get_worktree_binding_by_path() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let binding = create_test_binding("3-3");
+        save_worktree_binding(&conn, &binding).unwrap();
+
+        let retrieved = get_worktree_binding_by_path(&conn, "/test/project-wt-3-3").unwrap();
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().story_id, "3-3");
+    }
+
+    #[test]
+    fn test_remove_worktree_binding_by_path() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let binding = create_test_binding("3-3");
+        save_worktree_binding(&conn, &binding).unwrap();
+
+        let removed = remove_worktree_binding_by_path(&conn, "/test/project-wt-3-3").unwrap();
+        assert!(removed);
+
+        let retrieved = get_worktree_binding(&conn, "3-3").unwrap();
+        assert!(retrieved.is_none());
+    }
+
+    #[test]
+    fn test_remove_worktree_binding() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let binding = create_test_binding("3-3");
+        save_worktree_binding(&conn, &binding).unwrap();
+
+        let removed = remove_worktree_binding(&conn, "3-3").unwrap();
+        assert!(removed);
+
+        let retrieved = get_worktree_binding(&conn, "3-3").unwrap();
+        assert!(retrieved.is_none());
+    }
+
+    #[test]
+    fn test_worktree_binding_update() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let binding = create_test_binding("3-3");
+        save_worktree_binding(&conn, &binding).unwrap();
+
+        // Update with same story_id but different path
+        let updated = WorktreeBinding {
+            story_id: "3-3".to_string(),
+            worktree_path: "/new/path".to_string(),
+            branch_name: "story/3-3-updated".to_string(),
+            created_at: Utc::now().to_rfc3339(),
+        };
+        save_worktree_binding(&conn, &updated).unwrap();
+
+        let retrieved = get_worktree_binding(&conn, "3-3").unwrap().unwrap();
+        assert_eq!(retrieved.worktree_path, "/new/path");
+        assert_eq!(retrieved.branch_name, "story/3-3-updated");
     }
 }
