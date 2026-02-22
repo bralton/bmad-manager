@@ -7,6 +7,8 @@
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
   import WorkflowVisualizerContainer from '$lib/components/workflow/WorkflowVisualizerContainer.svelte';
   import StoryBoardContainer from '$lib/components/stories/StoryBoardContainer.svelte';
+  import ArtifactBrowser from '$lib/components/artifacts/ArtifactBrowser.svelte';
+  import ArtifactViewer from '$lib/components/shared/ArtifactViewer.svelte';
   import CommandPalette from '$lib/components/shared/CommandPalette.svelte';
   import Toast from '$lib/components/shared/Toast.svelte';
   import {
@@ -213,14 +215,27 @@
     // Initialize project from URL params if provided (AC #6 - new window support)
     initializeFromUrlParams();
 
-    // Global keyboard shortcut handler for command palette
+    // Global keyboard shortcut handler for command palette and view switching
     // Uses capture phase to intercept before xterm.js
     keyboardHandler = (e: KeyboardEvent) => {
-      // Cmd+K on macOS, Ctrl+K on Windows/Linux
+      // Cmd+K on macOS, Ctrl+K on Windows/Linux - Command palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         e.stopPropagation();
         toggleCommandPalette();
+      }
+      // Cmd+1/2/3 - Switch main views
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          activeView.set('workflows');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          activeView.set('stories');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          activeView.set('artifacts');
+        }
       }
     };
 
@@ -277,6 +292,9 @@
 <!-- Toast Notifications -->
 <Toast />
 
+<!-- Artifact Viewer (slide-in panel, always available) -->
+<ArtifactViewer />
+
 <div class="flex h-screen bg-gray-900 text-gray-100">
   <Sidebar />
 
@@ -284,6 +302,9 @@
     {#if currentView === 'stories'}
       <!-- Story Board View -->
       <StoryBoardContainer />
+    {:else if currentView === 'artifacts'}
+      <!-- Artifact Browser View -->
+      <ArtifactBrowser />
     {:else}
       <!-- Workflow View (default) -->
       <!-- Workflow Visualizer always visible at top when project is loaded -->

@@ -8,7 +8,7 @@ import { writable } from 'svelte/store';
 /**
  * Available main views in the application.
  */
-export type MainView = 'workflows' | 'stories';
+export type MainView = 'workflows' | 'stories' | 'artifacts';
 
 /**
  * The currently active main view.

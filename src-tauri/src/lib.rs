@@ -51,6 +51,73 @@ fn get_sprint_status(project_path: String) -> bmad_parser::SprintStatus {
     bmad_parser::parse_sprint_status(&path)
 }
 
+/// Lists all project artifacts organized by category for the artifact browser.
+#[tauri::command]
+fn list_project_artifacts(project_path: String) -> bmad_parser::ArtifactGroups {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::list_artifacts(&path)
+}
+
+/// Gets a specific story artifact by its ID (e.g., "1-1", "2-3").
+#[tauri::command]
+fn get_story_artifact(project_path: String, story_id: String) -> Option<bmad_parser::ArtifactInfo> {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::get_story_artifact(&path, &story_id)
+}
+
+/// Gets a specific epic artifact by its ID (e.g., "1", "2.5").
+#[tauri::command]
+fn get_epic_artifact(project_path: String, epic_id: String) -> Option<bmad_parser::ArtifactInfo> {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::get_epic_artifact(&path, &epic_id)
+}
+
+/// Reads the content of an artifact file.
+#[tauri::command]
+fn read_artifact_file(file_path: String) -> Result<String, String> {
+    bmad_parser::read_artifact_content(&file_path)
+}
+
+/// Opens a file in the user's configured IDE.
+///
+/// Uses the ide_command from settings (e.g., "code .", "cursor .").
+/// Replaces "." with the file path.
+#[tauri::command]
+async fn open_in_ide(file_path: String) -> Result<(), String> {
+    let settings = settings::get_settings().map_err(|e| e.to_string())?;
+    let ide_command = settings.tools.ide_command;
+
+    // Parse the IDE command (e.g., "code ." or "cursor .")
+    let parts: Vec<&str> = ide_command.split_whitespace().collect();
+    if parts.is_empty() {
+        return Err("IDE command not configured".to_string());
+    }
+
+    let program = parts[0];
+
+    // Build arguments - replace "." with the file path
+    let args: Vec<&str> = parts[1..]
+        .iter()
+        .map(|&arg| if arg == "." { file_path.as_str() } else { arg })
+        .collect();
+
+    // If no "." in args, append the file path
+    let args = if parts.iter().any(|&p| p == ".") {
+        args
+    } else {
+        let mut new_args = args;
+        new_args.push(&file_path);
+        new_args
+    };
+
+    std::process::Command::new(program)
+        .args(&args)
+        .spawn()
+        .map_err(|e| format!("Failed to open IDE: {}", e))?;
+
+    Ok(())
+}
+
 use tauri::Emitter;
 
 // Settings Tauri commands
@@ -216,6 +283,11 @@ pub fn run() {
             get_workflow_state,
             get_workflows,
             get_sprint_status,
+            list_project_artifacts,
+            get_story_artifact,
+            get_epic_artifact,
+            read_artifact_file,
+            open_in_ide,
             file_watcher::start_file_watcher,
             file_watcher::stop_file_watcher,
             worktree::commands::create_worktree,

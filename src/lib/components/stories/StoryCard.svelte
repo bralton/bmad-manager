@@ -7,6 +7,8 @@
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
   import { KANBAN_COLUMNS, type Story } from '$lib/types/stories';
+  import { artifactBrowserApi } from '$lib/services/artifacts';
+  import { selectArtifact } from '$lib/stores/artifacts';
 
   let { story }: { story: Story } = $props();
 
@@ -40,6 +42,28 @@
 
   function handleClick() {
     selectedStoryId.set(story.id);
+  }
+
+  async function handleViewArtifact(event: MouseEvent) {
+    event.stopPropagation();
+
+    const project = get(currentProject);
+    if (!project) {
+      showErrorToast('No project loaded');
+      return;
+    }
+
+    try {
+      const artifact = await artifactBrowserApi.getStoryArtifact(project.path, story.id);
+      if (artifact) {
+        selectArtifact(artifact);
+      } else {
+        showErrorToast(`Story artifact not found: ${story.id}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showErrorToast(`Failed to load artifact: ${message}`);
+    }
   }
 
   async function handleCreateWorktree(event: MouseEvent) {
@@ -115,8 +139,24 @@
   <div class="flex items-center justify-between mb-1">
     <span class="text-xs font-mono text-gray-400">{displayId}</span>
 
-    <!-- Worktree badge / loading / hover action -->
+    <!-- Badges and actions -->
     <div class="flex items-center gap-1">
+      <!-- View artifact icon (visible on hover, keyboard accessible) -->
+      <div
+        onclick={handleViewArtifact}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewArtifact(e as unknown as MouseEvent); } }}
+        role="button"
+        tabindex={0}
+        class="p-1 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-700 cursor-pointer
+          opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+        title="View story artifact"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+
       {#if isCreating}
         <!-- Loading spinner -->
         <span
@@ -153,16 +193,16 @@
           WT
         </span>
       {:else}
-        <!-- Create worktree indicator (visible on hover) -->
+        <!-- Create worktree indicator (visible on hover, keyboard accessible) -->
         <!-- Using div with role="button" to avoid nested buttons -->
         <div
           onclick={handleCreateWorktree}
           onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCreateWorktree(e as unknown as MouseEvent); } }}
           role="button"
-          tabindex={-1}
+          tabindex={0}
           class="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400
             hover:bg-indigo-600 hover:text-indigo-100 cursor-pointer
-            opacity-0 group-hover:opacity-100 transition-opacity"
+            opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
           title="Create worktree"
         >
           + WT

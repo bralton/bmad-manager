@@ -168,6 +168,15 @@
     >
       Stories
     </button>
+    <button
+      onclick={() => setActiveView('artifacts')}
+      class="flex-1 px-3 py-2 text-xs font-medium transition-colors
+        {currentView === 'artifacts'
+        ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
+        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+    >
+      Artifacts
+    </button>
   </div>
 
   <!-- Tab switcher -->

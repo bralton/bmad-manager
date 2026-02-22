@@ -1,6 +1,7 @@
 //! BMAD parser module for parsing agent manifests and configurations.
 
 mod agents;
+mod artifact_browser;
 mod artifacts;
 mod sprint_status;
 mod types;
@@ -19,3 +20,8 @@ pub use workflow_state::{aggregate_workflow_state, WorkflowState};
 #[allow(unused_imports)]
 pub use sprint_status::{parse_sprint_status, Epic, EpicStatus, RetroStatus, SprintStatus, Story};
 pub use workflows::{parse_workflow_manifest, Workflow};
+// Artifact browser exports for Tauri commands
+pub use artifact_browser::{
+    get_epic_artifact, get_story_artifact, list_artifacts, read_artifact_content, ArtifactCategory,
+    ArtifactGroups, ArtifactInfo,
+};
