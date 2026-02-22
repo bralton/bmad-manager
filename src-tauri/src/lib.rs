@@ -42,6 +42,14 @@ fn get_workflows(project_path: String) -> Result<Vec<bmad_parser::Workflow>, Str
         .map_err(|e| e.to_string())
 }
 
+/// Gets the sprint status for a project.
+/// Returns epics and stories with their statuses from sprint-status.yaml.
+#[tauri::command]
+fn get_sprint_status(project_path: String) -> bmad_parser::SprintStatus {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::parse_sprint_status(&path)
+}
+
 use tauri::Emitter;
 
 // Settings Tauri commands
@@ -131,6 +139,7 @@ pub fn run() {
             get_artifacts,
             get_workflow_state,
             get_workflows,
+            get_sprint_status,
             file_watcher::start_file_watcher,
             file_watcher::stop_file_watcher,
         ])
