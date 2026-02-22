@@ -99,6 +99,17 @@ fn search_sessions(query: String, limit: u32) -> Result<Vec<session_registry::Se
     session_registry::search_sessions(&query, limit)
 }
 
+/// Enhanced search with optional project filter and metadata.
+/// Returns SearchResult with sessions, match count, and search time.
+#[tauri::command]
+fn search_sessions_enhanced(
+    query: String,
+    project_filter: Option<String>,
+    limit: u32,
+) -> Result<session_registry::SearchResult, session_registry::DbError> {
+    session_registry::search_sessions_enhanced(&query, project_filter.as_deref(), limit)
+}
+
 /// Marks a session as resumed in the database.
 #[tauri::command]
 fn resume_session(session_id: String) -> Result<bool, session_registry::DbError> {
@@ -195,6 +206,7 @@ pub fn run() {
             get_recent_sessions,
             get_sessions_for_project,
             search_sessions,
+            search_sessions_enhanced,
             resume_session,
             get_settings,
             save_settings,

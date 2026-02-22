@@ -5,7 +5,7 @@
 
 mod db;
 
-pub use db::{DbError, SessionRecord, SessionStatus, WorktreeBinding};
+pub use db::{DbError, SessionRecord, SessionStatus, WorktreeBinding, SearchResult};
 
 use chrono::Utc;
 use rusqlite::Connection;
@@ -114,7 +114,18 @@ pub fn get_recent_sessions(limit: u32) -> Result<Vec<SessionRecord>, DbError> {
 pub fn search_sessions(query: &str, limit: u32) -> Result<Vec<SessionRecord>, DbError> {
     let db = get_db()?;
     let conn = db.conn.lock().unwrap();
-    db::search_sessions(&conn, query, limit)
+    db::fts_search_sessions(&conn, query, limit)
+}
+
+/// Enhanced search with optional project filter and metadata.
+pub fn search_sessions_enhanced(
+    query: &str,
+    project_filter: Option<&str>,
+    limit: u32,
+) -> Result<SearchResult, DbError> {
+    let db = get_db()?;
+    let conn = db.conn.lock().unwrap();
+    db::search_sessions_enhanced(&conn, query, project_filter, limit)
 }
 
 /// Updates the last_active timestamp for a session.

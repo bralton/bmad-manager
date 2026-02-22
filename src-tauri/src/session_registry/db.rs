@@ -64,6 +64,18 @@ impl SessionStatus {
     }
 }
 
+/// Search result with metadata.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResult {
+    /// Matching sessions.
+    pub sessions: Vec<SessionRecord>,
+    /// Total number of matches found.
+    pub match_count: usize,
+    /// Time taken to execute the search in milliseconds.
+    pub search_time_ms: u64,
+}
+
 /// A session record stored in the database.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,6 +141,53 @@ pub fn init_db(path: &Path) -> Result<Connection, DbError> {
         "CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)",
         [],
     )?;
+
+    // Create FTS5 virtual table for full-text search
+    // Uses external content table mode for efficiency (no data duplication)
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
+            id,
+            agent,
+            workflow,
+            project_path,
+            content='sessions',
+            content_rowid='rowid'
+        )",
+        [],
+    )?;
+
+    // FTS5 sync triggers for INSERT
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS sessions_ai AFTER INSERT ON sessions BEGIN
+            INSERT INTO sessions_fts(rowid, id, agent, workflow, project_path)
+            VALUES (new.rowid, new.id, new.agent, new.workflow, new.project_path);
+        END",
+        [],
+    )?;
+
+    // FTS5 sync triggers for DELETE
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS sessions_ad AFTER DELETE ON sessions BEGIN
+            INSERT INTO sessions_fts(sessions_fts, rowid, id, agent, workflow, project_path)
+            VALUES('delete', old.rowid, old.id, old.agent, old.workflow, old.project_path);
+        END",
+        [],
+    )?;
+
+    // FTS5 sync triggers for UPDATE (delete old entry, insert new)
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS sessions_au AFTER UPDATE ON sessions BEGIN
+            INSERT INTO sessions_fts(sessions_fts, rowid, id, agent, workflow, project_path)
+            VALUES('delete', old.rowid, old.id, old.agent, old.workflow, old.project_path);
+            INSERT INTO sessions_fts(rowid, id, agent, workflow, project_path)
+            VALUES (new.rowid, new.id, new.agent, new.workflow, new.project_path);
+        END",
+        [],
+    )?;
+
+    // Rebuild FTS5 index to populate with existing sessions
+    // This is idempotent and ensures the index is up-to-date on every startup
+    conn.execute("INSERT INTO sessions_fts(sessions_fts) VALUES('rebuild')", [])?;
 
     // Create worktree_bindings table for story-to-worktree associations
     conn.execute(
@@ -254,7 +313,7 @@ pub fn get_recent_sessions(conn: &Connection, limit: u32) -> Result<Vec<SessionR
     Ok(sessions)
 }
 
-/// Searches sessions by agent, workflow, or project name.
+/// Searches sessions by agent, workflow, or project name using LIKE (fallback).
 pub fn search_sessions(
     conn: &Connection,
     query: &str,
@@ -272,6 +331,128 @@ pub fn search_sessions(
 
     let sessions = stmt
         .query_map(params![search_pattern, limit], |row| {
+            Ok(SessionRecord {
+                id: row.get(0)?,
+                claude_session_id: row.get(1)?,
+                project_path: row.get(2)?,
+                agent: row.get(3)?,
+                workflow: row.get(4)?,
+                started_at: parse_datetime(row.get::<_, String>(5)?),
+                last_active: parse_datetime(row.get::<_, String>(6)?),
+                status: SessionStatus::from_str(&row.get::<_, String>(7)?),
+                resumed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
+            })
+        })?
+        .collect::<SqliteResult<Vec<_>>>()?;
+
+    Ok(sessions)
+}
+
+/// Searches sessions using FTS5 full-text search for better performance.
+/// Supports multi-term queries (e.g., "winston architecture").
+/// Falls back to LIKE search if FTS5 query fails (e.g., syntax errors).
+pub fn fts_search_sessions(
+    conn: &Connection,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<SessionRecord>, DbError> {
+    // Convert query to FTS5 format: split terms and join with AND
+    // "winston architecture" becomes "winston AND architecture"
+    let fts_query = query
+        .split_whitespace()
+        .map(|term| format!("\"{}\"*", term)) // Add prefix matching with *
+        .collect::<Vec<_>>()
+        .join(" AND ");
+
+    // Try FTS5 search first
+    let result = conn.prepare(
+        "SELECT s.id, s.claude_session_id, s.project_path, s.agent, s.workflow,
+                s.started_at, s.last_active, s.status, s.resumed_at
+         FROM sessions s
+         INNER JOIN sessions_fts fts ON s.rowid = fts.rowid
+         WHERE sessions_fts MATCH ?1
+         ORDER BY s.last_active DESC
+         LIMIT ?2",
+    );
+
+    match result {
+        Ok(mut stmt) => {
+            let sessions = stmt
+                .query_map(params![fts_query, limit], |row| {
+                    Ok(SessionRecord {
+                        id: row.get(0)?,
+                        claude_session_id: row.get(1)?,
+                        project_path: row.get(2)?,
+                        agent: row.get(3)?,
+                        workflow: row.get(4)?,
+                        started_at: parse_datetime(row.get::<_, String>(5)?),
+                        last_active: parse_datetime(row.get::<_, String>(6)?),
+                        status: SessionStatus::from_str(&row.get::<_, String>(7)?),
+                        resumed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
+                    })
+                })?
+                .collect::<SqliteResult<Vec<_>>>()?;
+            Ok(sessions)
+        }
+        Err(_) => {
+            // Fall back to LIKE search if FTS5 fails
+            search_sessions(conn, query, limit)
+        }
+    }
+}
+
+/// Enhanced search with optional project filter and metadata.
+/// Uses FTS5 for fast full-text search with fallback to LIKE.
+pub fn search_sessions_enhanced(
+    conn: &Connection,
+    query: &str,
+    project_filter: Option<&str>,
+    limit: u32,
+) -> Result<SearchResult, DbError> {
+    use std::time::Instant;
+    let start = Instant::now();
+
+    let sessions = match project_filter {
+        Some(project) => fts_search_sessions_with_project(conn, query, project, limit)?,
+        None => fts_search_sessions(conn, query, limit)?,
+    };
+
+    let search_time_ms = start.elapsed().as_millis() as u64;
+    let match_count = sessions.len();
+
+    Ok(SearchResult {
+        sessions,
+        match_count,
+        search_time_ms,
+    })
+}
+
+/// FTS5 search filtered by project path.
+fn fts_search_sessions_with_project(
+    conn: &Connection,
+    query: &str,
+    project: &str,
+    limit: u32,
+) -> Result<Vec<SessionRecord>, DbError> {
+    // Convert query to FTS5 format
+    let fts_query = query
+        .split_whitespace()
+        .map(|term| format!("\"{}\"*", term))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+
+    let mut stmt = conn.prepare(
+        "SELECT s.id, s.claude_session_id, s.project_path, s.agent, s.workflow,
+                s.started_at, s.last_active, s.status, s.resumed_at
+         FROM sessions s
+         INNER JOIN sessions_fts fts ON s.rowid = fts.rowid
+         WHERE sessions_fts MATCH ?1 AND s.project_path = ?2
+         ORDER BY s.last_active DESC
+         LIMIT ?3",
+    )?;
+
+    let sessions = stmt
+        .query_map(params![fts_query, project, limit], |row| {
             Ok(SessionRecord {
                 id: row.get(0)?,
                 claude_session_id: row.get(1)?,
@@ -710,7 +891,7 @@ mod tests {
 
         // Create multiple sessions with different statuses
         let session1 = create_test_session("bmad-test-active1-20260216-143052");
-        let mut session2 = create_test_session("bmad-test-active2-20260216-143053");
+        let session2 = create_test_session("bmad-test-active2-20260216-143053");
         let mut session3 = create_test_session("bmad-test-completed-20260216-143054");
         session3.status = SessionStatus::Completed;
 
@@ -885,5 +1066,265 @@ mod tests {
         let retrieved = get_worktree_binding(&conn, "3-3").unwrap().unwrap();
         assert_eq!(retrieved.worktree_path, "/new/path");
         assert_eq!(retrieved.branch_name, "story/3-3-updated");
+    }
+
+    // ========================================================================
+    // FTS5 Search Tests
+    // ========================================================================
+
+    #[test]
+    fn test_fts5_table_exists() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Verify FTS5 virtual table exists by querying it
+        let result: Result<i64, _> = conn.query_row(
+            "SELECT COUNT(*) FROM sessions_fts",
+            [],
+            |row| row.get(0),
+        );
+        assert!(result.is_ok(), "sessions_fts table should exist");
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn test_fts5_trigger_on_insert() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Insert a session
+        let session = create_test_session("bmad-test-architect-20260216-143052");
+        save_session(&conn, &session).unwrap();
+
+        // Verify FTS5 index was populated via trigger
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sessions_fts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1, "FTS5 index should have 1 entry after insert");
+    }
+
+    #[test]
+    fn test_fts5_trigger_on_delete() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Insert and then delete a session
+        let session = create_test_session("bmad-test-architect-20260216-143052");
+        save_session(&conn, &session).unwrap();
+
+        conn.execute("DELETE FROM sessions WHERE id = ?1", params![session.id])
+            .unwrap();
+
+        // Verify FTS5 index was cleaned up via trigger
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sessions_fts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "FTS5 index should be empty after delete");
+    }
+
+    #[test]
+    fn test_fts5_trigger_on_update() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Insert a session
+        let session = create_test_session("bmad-test-architect-20260216-143052");
+        save_session(&conn, &session).unwrap();
+
+        // Update the session (which triggers delete + insert in FTS)
+        let mut updated = session.clone();
+        updated.agent = "developer".to_string();
+        save_session(&conn, &updated).unwrap();
+
+        // Verify FTS5 index still has exactly 1 entry with updated data
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sessions_fts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1, "FTS5 index should have 1 entry after update");
+
+        // Verify the updated agent is searchable
+        let agent: String = conn
+            .query_row(
+                "SELECT agent FROM sessions_fts WHERE sessions_fts MATCH 'developer'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(agent, "developer");
+    }
+
+    #[test]
+    fn test_fts5_search_sessions_basic() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let session = SessionRecord {
+            id: "bmad-myproject-architect-20260216-143052".to_string(),
+            claude_session_id: uuid::Uuid::new_v4().to_string(),
+            project_path: "/my/awesome/project".to_string(),
+            agent: "architect".to_string(),
+            workflow: Some("create-prd".to_string()),
+            started_at: Utc::now(),
+            last_active: Utc::now(),
+            status: SessionStatus::Active,
+            resumed_at: None,
+        };
+        save_session(&conn, &session).unwrap();
+
+        // Search using FTS5
+        let results = fts_search_sessions(&conn, "architect", 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].agent, "architect");
+
+        // Search by project path
+        let results = fts_search_sessions(&conn, "awesome", 10).unwrap();
+        assert_eq!(results.len(), 1);
+
+        // Search by workflow
+        let results = fts_search_sessions(&conn, "prd", 10).unwrap();
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_fts5_search_sessions_multi_term() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let session1 = SessionRecord {
+            id: "bmad-proj1-architect-20260216-143052".to_string(),
+            claude_session_id: uuid::Uuid::new_v4().to_string(),
+            project_path: "/winston/project".to_string(),
+            agent: "architect".to_string(),
+            workflow: Some("architecture-design".to_string()),
+            started_at: Utc::now(),
+            last_active: Utc::now(),
+            status: SessionStatus::Active,
+            resumed_at: None,
+        };
+
+        let session2 = SessionRecord {
+            id: "bmad-proj2-developer-20260216-143053".to_string(),
+            claude_session_id: uuid::Uuid::new_v4().to_string(),
+            project_path: "/other/project".to_string(),
+            agent: "developer".to_string(),
+            workflow: None,
+            started_at: Utc::now(),
+            last_active: Utc::now(),
+            status: SessionStatus::Active,
+            resumed_at: None,
+        };
+
+        save_session(&conn, &session1).unwrap();
+        save_session(&conn, &session2).unwrap();
+
+        // Multi-term search: "winston architecture"
+        let results = fts_search_sessions(&conn, "winston architecture", 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].project_path, "/winston/project");
+    }
+
+    #[test]
+    fn test_fts5_search_no_results() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        let session = create_test_session("bmad-test-architect-20260216-143052");
+        save_session(&conn, &session).unwrap();
+
+        // Search for non-existent term
+        let results = fts_search_sessions(&conn, "nonexistent", 10).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_fts5_search_performance_with_many_sessions() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Create 500 sessions (per AC6: "Given I have 500+ sessions")
+        for i in 0..500 {
+            let session = SessionRecord {
+                id: format!("bmad-test-agent{}-20260216-{:06}", i % 5, i),
+                claude_session_id: uuid::Uuid::new_v4().to_string(),
+                project_path: format!("/project/{}", i % 10),
+                agent: format!("agent{}", i % 5),
+                workflow: if i % 2 == 0 { Some("workflow".to_string()) } else { None },
+                started_at: Utc::now(),
+                last_active: Utc::now() - chrono::Duration::seconds(i as i64),
+                status: SessionStatus::Active,
+                resumed_at: None,
+            };
+            save_session(&conn, &session).unwrap();
+        }
+
+        // Measure search time (should be fast with FTS5)
+        let start = std::time::Instant::now();
+        let results = fts_search_sessions(&conn, "agent2", 100).unwrap();
+        let elapsed = start.elapsed();
+
+        // Should find 100 sessions (500 / 5 agents)
+        assert_eq!(results.len(), 100);
+        // Should complete in under 100ms (per AC6)
+        assert!(elapsed.as_millis() < 100, "FTS5 search took too long: {:?}", elapsed);
+    }
+
+    #[test]
+    fn test_search_enhanced_returns_metadata() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Create some sessions
+        for i in 0..5 {
+            let session = SessionRecord {
+                id: format!("bmad-test-architect-20260216-{:06}", i),
+                claude_session_id: uuid::Uuid::new_v4().to_string(),
+                project_path: "/my/project".to_string(),
+                agent: "architect".to_string(),
+                workflow: Some("create-prd".to_string()),
+                started_at: Utc::now(),
+                last_active: Utc::now() - chrono::Duration::seconds(i as i64),
+                status: SessionStatus::Active,
+                resumed_at: None,
+            };
+            save_session(&conn, &session).unwrap();
+        }
+
+        let result = search_sessions_enhanced(&conn, "architect", None, 10).unwrap();
+        assert_eq!(result.match_count, 5);
+        assert_eq!(result.sessions.len(), 5);
+        assert!(result.search_time_ms < 100, "Search should be fast");
+    }
+
+    #[test]
+    fn test_search_enhanced_with_project_filter() {
+        let (_temp_dir, conn) = setup_test_db();
+
+        // Create sessions in different projects
+        let session1 = SessionRecord {
+            id: "bmad-proj1-architect-20260216-143052".to_string(),
+            claude_session_id: uuid::Uuid::new_v4().to_string(),
+            project_path: "/project/one".to_string(),
+            agent: "architect".to_string(),
+            workflow: None,
+            started_at: Utc::now(),
+            last_active: Utc::now(),
+            status: SessionStatus::Active,
+            resumed_at: None,
+        };
+
+        let session2 = SessionRecord {
+            id: "bmad-proj2-architect-20260216-143053".to_string(),
+            claude_session_id: uuid::Uuid::new_v4().to_string(),
+            project_path: "/project/two".to_string(),
+            agent: "architect".to_string(),
+            workflow: None,
+            started_at: Utc::now(),
+            last_active: Utc::now(),
+            status: SessionStatus::Active,
+            resumed_at: None,
+        };
+
+        save_session(&conn, &session1).unwrap();
+        save_session(&conn, &session2).unwrap();
+
+        // Search all projects
+        let result = search_sessions_enhanced(&conn, "architect", None, 10).unwrap();
+        assert_eq!(result.match_count, 2);
+
+        // Search with project filter
+        let result = search_sessions_enhanced(&conn, "architect", Some("/project/one"), 10).unwrap();
+        assert_eq!(result.match_count, 1);
+        assert_eq!(result.sessions[0].project_path, "/project/one");
     }
 }

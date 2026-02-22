@@ -179,3 +179,31 @@ export async function searchSessions(query: string, limit: number): Promise<Sess
   return invoke<SessionRecord[]>('search_sessions', { query, limit });
 }
 
+/**
+ * Search result with metadata from FTS5 search.
+ */
+export interface SearchResult {
+  /** Matching sessions. */
+  sessions: SessionRecord[];
+  /** Total number of matches found. */
+  matchCount: number;
+  /** Time taken to execute the search in milliseconds. */
+  searchTimeMs: number;
+}
+
+/**
+ * Enhanced search with optional project filter and metadata.
+ * Uses FTS5 for fast full-text search with fallback to LIKE.
+ */
+export async function searchSessionsEnhanced(
+  query: string,
+  limit: number,
+  projectFilter?: string
+): Promise<SearchResult> {
+  return invoke<SearchResult>('search_sessions_enhanced', {
+    query,
+    projectFilter,
+    limit,
+  });
+}
+

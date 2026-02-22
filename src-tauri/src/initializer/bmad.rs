@@ -131,7 +131,7 @@ mod tests {
         // This verifies error handling without actually running npx
         let dir = tempdir().unwrap();
 
-        let options = InitOptions {
+        let _options = InitOptions {
             project_name: "test".to_string(),
             user_name: "Test User".to_string(),
             workflow_style: super::super::WorkflowStyle::QuickFlow,

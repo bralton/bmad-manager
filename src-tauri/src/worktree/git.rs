@@ -685,7 +685,7 @@ mod tests {
         fs::remove_dir_all(&worktree_path).unwrap();
 
         // Git should still list the worktree entry
-        let worktrees_before = list_worktrees(dir.path()).unwrap();
+        let _worktrees_before = list_worktrees(dir.path()).unwrap();
         // Note: git may still list it or may not depending on implementation details
 
         // Prune should clean up the stale entry
