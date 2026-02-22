@@ -4,9 +4,29 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ActiveWorkflowPanel from './ActiveWorkflowPanel.svelte';
 import type { ActiveWorkflow, ArtifactMeta } from '$lib/types/workflow';
+
+// Mock the opener plugin
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openPath: vi.fn(),
+}));
+
+// Mock ui store for toast verification
+vi.mock('$lib/stores/ui', async () => {
+  const actual = await vi.importActual('$lib/stores/ui');
+  return {
+    ...actual,
+    showToast: vi.fn(),
+  };
+});
+
+import { openPath } from '@tauri-apps/plugin-opener';
+import { showToast } from '$lib/stores/ui';
+
+const mockOpenPath = openPath as ReturnType<typeof vi.fn>;
+const mockShowToast = showToast as ReturnType<typeof vi.fn>;
 
 describe('ActiveWorkflowPanel', () => {
   const defaultProps = {
@@ -256,6 +276,148 @@ describe('ActiveWorkflowPanel', () => {
 
       const closeButton = screen.getByRole('button', { name: /close panel/i });
       expect(closeButton).toHaveAttribute('aria-label', 'Close panel');
+    });
+  });
+
+  describe('artifact click-to-open', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    // P0: Test clicking artifact calls open() with correct path
+    it('calls open() with artifact path when clicked', async () => {
+      mockOpenPath.mockResolvedValue(undefined);
+
+      const artifacts: ArtifactMeta[] = [
+        {
+          path: '/test/file.md',
+          title: 'Test File',
+          created: '2026-02-20',
+          status: 'approved',
+          workflowType: 'prd',
+          stepsCompleted: [],
+          inputDocuments: [],
+        },
+      ];
+
+      render(ActiveWorkflowPanel, {
+        props: { ...defaultProps, artifacts },
+      });
+
+      const button = screen.getByRole('button', { name: /open file\.md in default application/i });
+      await fireEvent.click(button);
+
+      expect(mockOpenPath).toHaveBeenCalledWith('/test/file.md');
+    });
+
+    // P0: Test error handling shows toast when open fails
+    it('shows error toast when open fails', async () => {
+      mockOpenPath.mockRejectedValue(new Error('File not found'));
+
+      const artifacts: ArtifactMeta[] = [
+        {
+          path: '/test/missing.md',
+          title: 'Missing File',
+          created: '2026-02-20',
+          status: 'draft',
+          workflowType: 'prd',
+          stepsCompleted: [],
+          inputDocuments: [],
+        },
+      ];
+
+      render(ActiveWorkflowPanel, {
+        props: { ...defaultProps, artifacts },
+      });
+
+      const button = screen.getByRole('button', { name: /open missing\.md in default application/i });
+      await fireEvent.click(button);
+
+      // Wait for async error handling
+      await vi.waitFor(() => {
+        expect(mockShowToast).toHaveBeenCalledWith(
+          'Could not open file: missing.md',
+          '❌',
+          3000
+        );
+      });
+    });
+
+    // P1: Test keyboard Enter key triggers open (native button behavior)
+    it('opens file on Enter keypress', async () => {
+      mockOpenPath.mockResolvedValue(undefined);
+
+      const artifacts: ArtifactMeta[] = [
+        {
+          path: '/test/keyboard.md',
+          title: 'Keyboard Test',
+          created: '2026-02-20',
+          status: 'approved',
+          workflowType: 'prd',
+          stepsCompleted: [],
+          inputDocuments: [],
+        },
+      ];
+
+      render(ActiveWorkflowPanel, {
+        props: { ...defaultProps, artifacts },
+      });
+
+      const button = screen.getByRole('button', { name: /open keyboard\.md in default application/i });
+      expect(button).toBeInTheDocument();
+      expect(button.tagName).toBe('BUTTON');
+
+      // Native button handles Enter key by triggering click
+      // Simulate the click that Enter would trigger on a native button
+      await fireEvent.click(button);
+
+      expect(mockOpenPath).toHaveBeenCalledWith('/test/keyboard.md');
+    });
+
+    // P1: Test artifact button has hover styling classes
+    it('artifact button has hover styling', () => {
+      const artifacts: ArtifactMeta[] = [
+        {
+          path: '/test/hover.md',
+          title: 'Hover Test',
+          created: '2026-02-20',
+          status: 'approved',
+          workflowType: 'prd',
+          stepsCompleted: [],
+          inputDocuments: [],
+        },
+      ];
+
+      render(ActiveWorkflowPanel, {
+        props: { ...defaultProps, artifacts },
+      });
+
+      const button = screen.getByRole('button', { name: /open hover\.md in default application/i });
+      expect(button).toHaveClass('cursor-pointer');
+      expect(button).toHaveClass('hover:underline');
+      expect(button).toHaveClass('hover:text-blue-400');
+    });
+
+    // P1: Test artifact button has aria-label
+    it('artifact button has aria-label for accessibility', () => {
+      const artifacts: ArtifactMeta[] = [
+        {
+          path: '/test/accessible.md',
+          title: 'Accessible',
+          created: '2026-02-20',
+          status: 'approved',
+          workflowType: 'prd',
+          stepsCompleted: [],
+          inputDocuments: [],
+        },
+      ];
+
+      render(ActiveWorkflowPanel, {
+        props: { ...defaultProps, artifacts },
+      });
+
+      const button = screen.getByRole('button', { name: /open accessible\.md in default application/i });
+      expect(button).toHaveAttribute('aria-label', 'Open accessible.md in default application');
     });
   });
 });

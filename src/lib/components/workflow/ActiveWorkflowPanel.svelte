@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Phase, ActiveWorkflow, ArtifactMeta } from '$lib/types/workflow';
   import { PHASE_LABELS, getTotalSteps, getWorkflowDisplayName } from '$lib/constants/workflow';
+  import { openPath } from '@tauri-apps/plugin-opener';
+  import { showToast } from '$lib/stores/ui';
 
   interface Props {
     phase: Phase;
@@ -11,9 +13,19 @@
 
   let { phase, activeWorkflow, artifacts, onClose }: Props = $props();
 
-  // Extract filename from absolute path
+  // Extract filename from absolute path (handles both Unix and Windows paths)
   function getFileName(path: string): string {
-    return path.split('/').pop() ?? path;
+    return path.split(/[/\\]/).pop() ?? path;
+  }
+
+  // Open artifact file in system's default application
+  async function openArtifact(path: string) {
+    try {
+      await openPath(path);
+    } catch (error) {
+      console.error('Failed to open file:', path, error);
+      showToast(`Could not open file: ${getFileName(path)}`, '❌', 3000);
+    }
   }
 
   // Format workflow steps as array for display
@@ -117,9 +129,16 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span class="text-gray-300 truncate" title={artifact.path}>
+            <button
+              type="button"
+              onclick={() => openArtifact(artifact.path)}
+              class="text-gray-300 truncate cursor-pointer hover:text-blue-400 hover:underline
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+              title={artifact.path}
+              aria-label="Open {getFileName(artifact.path)} in default application"
+            >
               {getFileName(artifact.path)}
-            </span>
+            </button>
             <!-- Status badge -->
             <span
               class="ml-auto text-[10px] px-1.5 py-0.5 rounded
