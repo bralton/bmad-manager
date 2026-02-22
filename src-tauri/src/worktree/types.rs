@@ -50,13 +50,9 @@ pub enum WorktreeError {
     #[error("Branch already checked out in another worktree: {0}")]
     BranchInUse(String),
 
-    /// Used by Story 3-6 (worktree cleanup) - not yet implemented
-    #[allow(dead_code)]
     #[error("Worktree not found: {0}")]
     NotFound(String),
 
-    /// Used by Story 3-6 (worktree cleanup) - not yet implemented
-    #[allow(dead_code)]
     #[error("Worktree has uncommitted changes")]
     DirtyWorktree,
 

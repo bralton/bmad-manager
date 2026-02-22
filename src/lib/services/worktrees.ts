@@ -35,6 +35,12 @@ export function parseWorktreeError(error: unknown): string {
     if (error.includes('DatabaseError')) {
       return 'Failed to save worktree binding';
     }
+    if (error.includes('DirtyWorktree')) {
+      return 'Worktree has uncommitted changes. Use Force Remove to proceed.';
+    }
+    if (error.includes('NotFound')) {
+      return 'Worktree not found. It may have been deleted manually.';
+    }
     return error;
   }
 
@@ -135,4 +141,28 @@ export const worktreeApi = {
    */
   getCurrentWorktreeStoryId: (projectPath: string) =>
     invoke<string | null>('get_current_worktree_story_id', { projectPath }),
+
+  /**
+   * Gets the list of dirty (changed) files in a worktree.
+   *
+   * @param worktreePath - Absolute path to the worktree
+   * @returns Array of file paths in git status --porcelain format
+   */
+  getDirtyFiles: (worktreePath: string) =>
+    invoke<string[]>('get_dirty_files', { worktreePath }),
+
+  /**
+   * Cleans up a worktree by removing it and optionally deleting the branch.
+   *
+   * @param repoPath - Absolute path to the main repository
+   * @param worktreePath - Absolute path to the worktree to remove
+   * @param deleteBranch - Whether to also delete the branch
+   * @param force - Whether to force removal even if worktree is dirty
+   */
+  cleanupWorktree: (
+    repoPath: string,
+    worktreePath: string,
+    deleteBranch: boolean,
+    force: boolean
+  ) => invoke<void>('cleanup_worktree', { repoPath, worktreePath, deleteBranch, force }),
 };

@@ -214,6 +214,8 @@ pub fn run() {
             worktree::commands::get_all_worktree_bindings,
             worktree::commands::validate_worktree_bindings,
             worktree::commands::get_current_worktree_story_id,
+            worktree::commands::cleanup_worktree,
+            worktree::commands::get_dirty_files,
             open_project_window,
         ])
         .on_window_event(|window, event| {

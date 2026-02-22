@@ -28,6 +28,17 @@
         <span class="text-lg flex-shrink-0">{toast.icon}</span>
       {/if}
       <span class="text-sm flex-1">{toast.message}</span>
+      {#if toast.secondaryAction}
+        <button
+          onclick={() => {
+            toast.secondaryAction?.onClick();
+            dismissToast(toast.id);
+          }}
+          class="text-sm text-gray-400 hover:text-gray-300 font-medium transition-colors whitespace-nowrap"
+        >
+          {toast.secondaryAction.label}
+        </button>
+      {/if}
       {#if toast.action}
         <button
           onclick={() => {

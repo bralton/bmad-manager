@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import ProjectPicker from '$lib/components/project/ProjectPicker.svelte';
   import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
@@ -33,6 +33,7 @@
   import { api } from '$lib/services/tauri';
   import { projectLoading, projectError } from '$lib/stores/project';
   import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+  import { invoke } from '@tauri-apps/api/core';
 
   let selectedId = $derived($currentSessionId);
   let allSessions = $derived(Array.from($sessions.values()));
@@ -50,6 +51,46 @@
 
   // Queue for commands received while a session is spawning (AC3: queue until ready)
   let pendingCommand = $state<string | null>(null);
+
+  // File watcher management - runs for any view when project is loaded
+  let watcherProjectPath: string | null = null;
+  let watcherWindowLabel: string | null = null;
+
+  // Start/stop file watcher based on project state
+  $effect(() => {
+    const currentPath = project?.state === 'fully-initialized' ? project.path : null;
+
+    if (currentPath !== watcherProjectPath) {
+      // Project changed - update watcher
+      manageFileWatcher(currentPath);
+    }
+  });
+
+  async function manageFileWatcher(projectPath: string | null) {
+    // Stop existing watcher if we have one
+    if (watcherWindowLabel) {
+      try {
+        await invoke('stop_file_watcher', { windowLabel: watcherWindowLabel });
+      } catch (e) {
+        console.warn('Failed to stop file watcher:', e);
+      }
+      watcherWindowLabel = null;
+    }
+
+    watcherProjectPath = projectPath;
+
+    // Start new watcher if project is loaded
+    if (projectPath) {
+      try {
+        const appWindow = getCurrentWebviewWindow();
+        const windowLabel = appWindow.label;
+        await invoke('start_file_watcher', { windowLabel, projectPath });
+        watcherWindowLabel = windowLabel;
+      } catch (e) {
+        console.warn('Failed to start file watcher:', e);
+      }
+    }
+  }
 
   // React to command execution from CommandPalette
   $effect(() => {
@@ -162,6 +203,9 @@
     }
   }
 
+  // Keyboard handler reference for cleanup
+  let keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
+
   // Load settings on mount and set up global keyboard shortcut
   onMount(() => {
     loadSettings();
@@ -171,7 +215,7 @@
 
     // Global keyboard shortcut handler for command palette
     // Uses capture phase to intercept before xterm.js
-    const handler = (e: KeyboardEvent) => {
+    keyboardHandler = (e: KeyboardEvent) => {
       // Cmd+K on macOS, Ctrl+K on Windows/Linux
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -180,8 +224,22 @@
       }
     };
 
-    window.addEventListener('keydown', handler, { capture: true });
-    return () => window.removeEventListener('keydown', handler, { capture: true });
+    window.addEventListener('keydown', keyboardHandler, { capture: true });
+  });
+
+  // Clean up on destroy
+  onDestroy(() => {
+    // Remove keyboard handler
+    if (keyboardHandler) {
+      window.removeEventListener('keydown', keyboardHandler, { capture: true });
+    }
+
+    // Stop file watcher
+    if (watcherWindowLabel) {
+      invoke('stop_file_watcher', { windowLabel: watcherWindowLabel }).catch((e) => {
+        console.warn('Failed to stop file watcher on destroy:', e);
+      });
+    }
   });
 
   function handleClosePanel() {

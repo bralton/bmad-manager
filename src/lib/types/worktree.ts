@@ -71,3 +71,18 @@ export interface WorktreeError {
   kind: WorktreeErrorKind;
   message: string;
 }
+
+/**
+ * Cleanup mode options for worktree removal.
+ */
+export type CleanupMode = 'worktree-only' | 'worktree-and-branch';
+
+/**
+ * Options for cleaning up a worktree.
+ */
+export interface CleanupOptions {
+  /** Whether to delete the branch after removing the worktree */
+  deleteBranch: boolean;
+  /** Whether to force removal even if worktree has uncommitted changes */
+  force: boolean;
+}

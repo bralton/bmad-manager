@@ -228,80 +228,8 @@ describe('WorkflowVisualizerContainer', () => {
     });
   });
 
-  describe('watcher integration', () => {
-    // P1: Test watcher error indicator
-    it('shows watcher error indicator when watcher has error', async () => {
-      // Make start_file_watcher fail
-      mockInvoke.mockImplementation((command: string) => {
-        if (command === 'start_file_watcher') {
-          return Promise.reject(new Error('Watch path not found'));
-        }
-        return Promise.resolve();
-      });
-
-      currentProject.set(fullyInitializedProject);
-      workflowState.set(mockWorkflowState);
-
-      render(WorkflowVisualizerContainer);
-
-      // Wait for watcher to fail and indicator to appear
-      await waitFor(
-        () => {
-          // Should show warning indicator
-          const warningIndicator = document.querySelector('[title*="File watcher inactive"]');
-          expect(warningIndicator).toBeInTheDocument();
-        },
-        { timeout: 2000 }
-      );
-    });
-
-    // P2: Test startWatcher call
-    it('starts file watcher for fully initialized project', async () => {
-      // Reset mock to default behavior
-      mockInvoke.mockResolvedValue(undefined);
-
-      currentProject.set(fullyInitializedProject);
-      workflowState.set(mockWorkflowState);
-
-      render(WorkflowVisualizerContainer);
-
-      await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith('start_file_watcher', {
-          windowLabel: 'test-window',
-          projectPath: '/test/project',
-        });
-      });
-    });
-
-    // P2: Test cleanupWatcher on destroy
-    it('stops file watcher on component destroy', async () => {
-      // Reset mock to default behavior
-      mockInvoke.mockResolvedValue(undefined);
-
-      currentProject.set(fullyInitializedProject);
-      workflowState.set(mockWorkflowState);
-
-      const { unmount } = render(WorkflowVisualizerContainer);
-
-      // Wait for initial setup
-      await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith('start_file_watcher', expect.anything());
-      });
-
-      // Clear calls to track new ones
-      mockInvoke.mockClear();
-
-      // Unmount
-      unmount();
-
-      // Should call stop with window label
-      await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith('stop_file_watcher', {
-          windowLabel: 'test-window',
-        });
-      });
-    });
-  });
+  // Note: File watcher management tests removed - watcher is now managed at page level (+page.svelte)
+  // See the original tests in git history if needed for +page.svelte tests
 
   describe('fallback state', () => {
     // P2: Test fallback unavailable state

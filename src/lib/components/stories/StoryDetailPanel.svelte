@@ -7,6 +7,7 @@
   import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
+  import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
 
   let {
     story,
@@ -21,6 +22,12 @@
   // Get worktree for this story
   let worktree = $derived($worktreesByStory.get(story.id));
   let isCreating = $derived($worktreeCreating.get(story.id) ?? false);
+
+  // Cleanup dialog state
+  let showCleanupDialog = $state(false);
+
+  // Highlight cleanup button when story is done (AC #6)
+  let isDone = $derived(story.status === 'done');
 
   // Convert slug to readable title
   let title = $derived.by(() => {
@@ -177,8 +184,11 @@
   }
 
   function handleCleanUpWorktree() {
-    // Placeholder - actual implementation in Story 3-6
-    showSuccessToast('Cleanup flow... (Story 3-6)', { icon: '🧹' });
+    showCleanupDialog = true;
+  }
+
+  function handleCloseCleanupDialog() {
+    showCleanupDialog = false;
   }
 </script>
 
@@ -303,8 +313,10 @@
               </button>
               <button
                 onclick={handleCleanUpWorktree}
-                class="flex-1 px-3 py-2 text-sm rounded bg-gray-700 text-gray-300
-                  hover:bg-gray-600 hover:text-white transition-colors"
+                class="flex-1 px-3 py-2 text-sm rounded transition-colors
+                  {isDone
+                    ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-600/50 hover:bg-yellow-600/30'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'}"
               >
                 Clean Up Worktree
               </button>
@@ -330,3 +342,12 @@
     </div>
   </div>
 </div>
+
+<!-- Cleanup dialog -->
+{#if showCleanupDialog && worktree}
+  <WorktreeCleanupDialog
+    {story}
+    {worktree}
+    onClose={handleCloseCleanupDialog}
+  />
+{/if}

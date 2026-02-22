@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { onDestroy } from 'svelte';
-  import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import WorkflowVisualizer from './WorkflowVisualizer.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
@@ -26,24 +24,9 @@
   // Store cleanup functions for event listeners
   let eventUnlisteners: UnlistenFn[] = [];
 
-  // Track watcher status for UI indication
-  let watcherActive = $state(false);
-  let watcherError: string | null = $state(null);
-
-  // Get window label for per-window file watcher
-  // Uses a function to handle test environment where Tauri APIs may not be available
-  function getWindowLabel(): string {
-    try {
-      return getCurrentWebviewWindow().label;
-    } catch {
-      // Fallback for test environment or if Tauri context is not available
-      return 'main';
-    }
-  }
-  const windowLabel = getWindowLabel();
-
   // Watch for project changes and refresh workflow state
   // This handles both initial mount (lastProjectPath starts null) and subsequent changes
+  // Note: File watcher is managed at the page level (+page.svelte)
   $effect(() => {
     const projectPath = project?.path ?? null;
 
@@ -57,36 +40,27 @@
    * Handles project changes with proper async cleanup.
    */
   async function handleProjectChange(projectPath: string | null) {
-    // Clean up previous watcher and listeners first
-    await cleanupWatcher();
+    // Clean up previous listeners first
+    await cleanupListeners();
 
     lastProjectPath = projectPath;
 
     if (projectPath && project?.state === 'fully-initialized') {
       refreshWorkflowState(projectPath);
-      // Start file watcher for the new project
-      await startWatcher(projectPath);
+      // Set up event listeners for workflow refresh
+      // (file watcher is managed at page level)
+      await setupListeners(projectPath);
     } else {
       resetWorkflowState();
     }
   }
 
   /**
-   * Starts the file watcher and sets up event listeners for a project.
-   * Each window has its own independent file watcher.
+   * Sets up event listeners that trigger workflow refresh.
+   * The file watcher is started by +page.svelte at the page level.
    */
-  async function startWatcher(projectPath: string) {
-    watcherError = null;
-
+  async function setupListeners(projectPath: string) {
     try {
-      // Start the Rust file watcher for this window
-      await invoke('start_file_watcher', {
-        windowLabel,
-        projectPath,
-      });
-      watcherActive = true;
-
-      // Set up event listeners that trigger workflow refresh
       const handlers: EventHandlers = {
         onWorkflowStateChanged: () => {
           refreshWorkflowState(projectPath);
@@ -95,49 +69,32 @@
           refreshWorkflowState(projectPath);
         },
         onStoryStatusChanged: () => {
+          // Also refresh workflow when story status changes
+          // (sprint status affects workflow phase detection)
           refreshWorkflowState(projectPath);
         },
         onWatcherError: (message: string) => {
           console.error('File watcher error:', message);
-          watcherError = message;
-          watcherActive = false;
         },
       };
 
       eventUnlisteners = await setupEventListeners(handlers);
     } catch (err) {
-      // Log and set error state - user should know watching isn't working
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.warn('Failed to start file watcher:', errorMessage);
-      watcherError = errorMessage;
-      watcherActive = false;
+      console.warn('Failed to set up event listeners:', err);
     }
   }
 
   /**
-   * Cleans up the file watcher and event listeners.
-   * Returns a promise that resolves when cleanup is complete.
+   * Cleans up event listeners.
    */
-  async function cleanupWatcher(): Promise<void> {
-    watcherActive = false;
-    watcherError = null;
-
-    // Remove event listeners first
+  async function cleanupListeners(): Promise<void> {
     eventUnlisteners.forEach((unlisten) => unlisten());
     eventUnlisteners = [];
-
-    // Stop the Rust file watcher for this window
-    try {
-      await invoke('stop_file_watcher', { windowLabel });
-    } catch (err) {
-      console.warn('Failed to stop file watcher:', err);
-    }
   }
 
   // Cleanup on component destroy
   onDestroy(() => {
-    // Fire and forget - component is being destroyed anyway
-    cleanupWatcher();
+    cleanupListeners();
   });
 
   function handleRetry() {
@@ -172,15 +129,7 @@
       </div>
     {:else if workflow}
       <!-- Workflow visualizer -->
-      <div class="relative">
-        <WorkflowVisualizer workflowState={workflow} />
-        {#if watcherError}
-          <!-- Watcher error indicator -->
-          <div class="absolute top-1 right-1" title="File watcher inactive: {watcherError}">
-            <span class="text-yellow-500 text-xs">⚠</span>
-          </div>
-        {/if}
-      </div>
+      <WorkflowVisualizer workflowState={workflow} />
     {:else}
       <!-- Fallback: no state yet, not loading, no error -->
       <div class="h-20 flex items-center justify-center">

@@ -207,6 +207,65 @@ pub async fn validate_worktree_bindings(
     Ok(orphaned)
 }
 
+/// Cleans up a worktree by removing it and optionally deleting the branch.
+///
+/// This combines worktree removal with optional branch deletion and
+/// removes the SQLite binding.
+#[tauri::command]
+pub async fn cleanup_worktree(
+    repo_path: String,
+    worktree_path: String,
+    delete_branch: bool,
+    force: bool,
+) -> Result<(), WorktreeError> {
+    let repo = PathBuf::from(&repo_path);
+    let wt = PathBuf::from(&worktree_path);
+
+    // Get branch name before removal if we need to delete it
+    let branch_to_delete = if delete_branch {
+        let worktrees = list_worktrees(repo_path.clone()).await?;
+        worktrees
+            .iter()
+            .find(|w| w.path == wt)
+            .map(|w| w.branch.clone())
+    } else {
+        None
+    };
+
+    // Remove worktree
+    let repo_clone = repo.clone();
+    let wt_clone = wt.clone();
+    tokio::task::spawn_blocking(move || git::remove_worktree(&repo_clone, &wt_clone, force))
+        .await
+        .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))??;
+
+    // Remove binding from SQLite
+    if let Err(e) = session_registry::remove_worktree_binding_by_path(&worktree_path) {
+        eprintln!("Warning: Failed to remove worktree binding: {}", e);
+    }
+
+    // Delete branch if requested
+    if let Some(branch) = branch_to_delete {
+        let repo_clone = repo.clone();
+        tokio::task::spawn_blocking(move || git::delete_branch(&repo_clone, &branch, force))
+            .await
+            .map_err(|e| WorktreeError::GitError(format!("Branch delete failed: {}", e)))??;
+    }
+
+    Ok(())
+}
+
+/// Gets the list of dirty files in a worktree.
+///
+/// Returns a list of changed files in git status --porcelain format.
+#[tauri::command]
+pub async fn get_dirty_files(worktree_path: String) -> Result<Vec<String>, WorktreeError> {
+    let wt = PathBuf::from(&worktree_path);
+    tokio::task::spawn_blocking(move || git::get_dirty_files(&wt))
+        .await
+        .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))?
+}
+
 /// Computes the branch name for a worktree.
 ///
 /// If story_id already ends with the slug, don't append the slug again

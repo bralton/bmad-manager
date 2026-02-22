@@ -280,6 +280,104 @@ pub fn extract_story_id_from_branch(branch: &str) -> Option<String> {
     }
 }
 
+/// Gets the list of dirty files in a worktree.
+///
+/// Returns a list of changed files in the format from `git status --porcelain`.
+/// Each line has a two-character status prefix followed by the file path.
+pub fn get_dirty_files(worktree_path: &Path) -> Result<Vec<String>, WorktreeError> {
+    let output = run_git(&["status", "--porcelain"], worktree_path)?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(WorktreeError::GitError(format!(
+            "git status failed: {}",
+            stderr.trim()
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let files: Vec<String> = stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+        .collect();
+
+    Ok(files)
+}
+
+/// Removes a worktree from the repository.
+///
+/// # Arguments
+/// * `repo_path` - Path to the main repository
+/// * `worktree_path` - Path to the worktree to remove
+/// * `force` - If true, removes even if the worktree has uncommitted changes
+pub fn remove_worktree(
+    repo_path: &Path,
+    worktree_path: &Path,
+    force: bool,
+) -> Result<(), WorktreeError> {
+    let worktree_path_str = worktree_path
+        .to_str()
+        .ok_or_else(|| WorktreeError::InvalidPath(worktree_path.display().to_string()))?;
+
+    let args = if force {
+        vec!["worktree", "remove", "--force", worktree_path_str]
+    } else {
+        vec!["worktree", "remove", worktree_path_str]
+    };
+
+    let output = run_git(&args, repo_path)?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_trimmed = stderr.trim();
+
+        // Check for specific error conditions
+        if stderr_trimmed.contains("contains modified or untracked files") {
+            return Err(WorktreeError::DirtyWorktree);
+        }
+
+        return Err(WorktreeError::GitError(format!(
+            "git worktree remove failed: {}",
+            stderr_trimmed
+        )));
+    }
+
+    Ok(())
+}
+
+/// Deletes a branch from the repository.
+///
+/// # Arguments
+/// * `repo_path` - Path to the repository
+/// * `branch_name` - Name of the branch to delete
+/// * `force` - If true, uses -D (force delete), otherwise uses -d
+pub fn delete_branch(
+    repo_path: &Path,
+    branch_name: &str,
+    force: bool,
+) -> Result<(), WorktreeError> {
+    let delete_flag = if force { "-D" } else { "-d" };
+    let output = run_git(&["branch", delete_flag, branch_name], repo_path)?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_trimmed = stderr.trim();
+
+        // Branch not found is not necessarily an error
+        if stderr_trimmed.contains("not found") {
+            return Ok(());
+        }
+
+        return Err(WorktreeError::GitError(format!(
+            "git branch delete failed: {}",
+            stderr_trimmed
+        )));
+    }
+
+    Ok(())
+}
+
 /// Prunes stale worktree metadata from the repository.
 ///
 /// Runs `git worktree prune` to clean up administrative files for worktrees
@@ -700,5 +798,119 @@ mod tests {
             extract_story_id_from_branch("story/3-4-my-complex-feature-name"),
             Some("3-4".to_string())
         );
+    }
+
+    #[test]
+    fn test_get_dirty_files_clean() {
+        let dir = create_test_repo();
+        let files = get_dirty_files(dir.path()).unwrap();
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_get_dirty_files_with_changes() {
+        let dir = create_test_repo();
+
+        // Create untracked file
+        fs::write(dir.path().join("new-file.txt"), "content").unwrap();
+
+        let files = get_dirty_files(dir.path()).unwrap();
+        assert_eq!(files.len(), 1);
+        assert!(files[0].contains("new-file.txt"));
+    }
+
+    #[test]
+    fn test_get_dirty_files_modified() {
+        let dir = create_test_repo();
+
+        // Modify existing file
+        fs::write(dir.path().join("README.md"), "# Modified").unwrap();
+
+        let files = get_dirty_files(dir.path()).unwrap();
+        assert_eq!(files.len(), 1);
+        assert!(files[0].contains("README.md"));
+    }
+
+    #[test]
+    fn test_remove_worktree() {
+        let dir = create_test_repo();
+        let worktree_path = dir.path().parent().unwrap().join("wt-remove-test");
+
+        // Create a worktree
+        create_worktree(
+            dir.path(),
+            &worktree_path,
+            "feature/remove-test",
+            None,
+        )
+        .unwrap();
+
+        assert!(worktree_path.exists());
+
+        // Remove it
+        remove_worktree(dir.path(), &worktree_path, false).unwrap();
+
+        assert!(!worktree_path.exists());
+    }
+
+    #[test]
+    fn test_remove_worktree_dirty_requires_force() {
+        let dir = create_test_repo();
+        let worktree_path = dir.path().parent().unwrap().join("wt-dirty-remove");
+
+        // Create a worktree
+        create_worktree(
+            dir.path(),
+            &worktree_path,
+            "feature/dirty-remove",
+            None,
+        )
+        .unwrap();
+
+        // Make it dirty
+        fs::write(worktree_path.join("dirty-file.txt"), "dirty content").unwrap();
+
+        // Remove without force should fail
+        let result = remove_worktree(dir.path(), &worktree_path, false);
+        assert!(matches!(result, Err(WorktreeError::DirtyWorktree)));
+
+        // Remove with force should succeed
+        let result = remove_worktree(dir.path(), &worktree_path, true);
+        assert!(result.is_ok());
+        assert!(!worktree_path.exists());
+    }
+
+    #[test]
+    fn test_delete_branch() {
+        let dir = create_test_repo();
+
+        // Create a branch
+        Command::new("git")
+            .args(["branch", "feature/to-delete"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        // Delete it (not force, since it's merged with HEAD)
+        let result = delete_branch(dir.path(), "feature/to-delete", false);
+        assert!(result.is_ok());
+
+        // Verify it's gone
+        let output = Command::new("git")
+            .args(["branch", "--list", "feature/to-delete"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.trim().is_empty());
+    }
+
+    #[test]
+    fn test_delete_branch_not_found() {
+        let dir = create_test_repo();
+
+        // Deleting non-existent branch should succeed (no-op)
+        let result = delete_branch(dir.path(), "nonexistent-branch", false);
+        assert!(result.is_ok());
     }
 }

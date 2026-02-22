@@ -465,8 +465,6 @@ pub fn get_worktree_binding_by_path(
 
 /// Removes a worktree binding by worktree path.
 /// Returns true if a binding was removed.
-/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
-#[allow(dead_code)]
 pub fn remove_worktree_binding_by_path(conn: &Connection, worktree_path: &str) -> Result<bool, DbError> {
     let rows_affected = conn.execute(
         "DELETE FROM worktree_bindings WHERE worktree_path = ?1",
@@ -477,8 +475,6 @@ pub fn remove_worktree_binding_by_path(conn: &Connection, worktree_path: &str) -
 
 /// Removes a worktree binding by story ID.
 /// Returns true if a binding was removed.
-/// Used by Story 3-6 (worktree cleanup) - not yet called externally.
-#[allow(dead_code)]
 pub fn remove_worktree_binding(conn: &Connection, story_id: &str) -> Result<bool, DbError> {
     let rows_affected = conn.execute(
         "DELETE FROM worktree_bindings WHERE story_id = ?1",

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import StoryBoard from './StoryBoard.svelte';
   import StoryDetailPanel from './StoryDetailPanel.svelte';
+  import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
     sprintStatus,
@@ -11,9 +13,12 @@
     refreshSprintStatus,
     resetSprintStatus,
   } from '$lib/stores/stories';
-  import { validateAndRefreshWorktrees, resetWorktrees } from '$lib/stores/worktrees';
+  import { validateAndRefreshWorktrees, resetWorktrees, worktreesByStory } from '$lib/stores/worktrees';
+  import { showToast, type ToastAction } from '$lib/stores/ui';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
   import type { UnlistenFn } from '@tauri-apps/api/event';
+  import type { Story } from '$lib/types/stories';
+  import type { Worktree } from '$lib/types/worktree';
 
   // Reactive store access
   let project = $derived($currentProject);
@@ -27,6 +32,13 @@
 
   // Store cleanup functions for event listeners
   let eventUnlisteners: UnlistenFn[] = [];
+
+  // Track previous story statuses to detect transitions to "done"
+  let previousStatusMap = new Map<string, string>();
+
+  // State for cleanup prompt dialog (triggered by story completion toast action)
+  let cleanupPromptStory = $state<Story | null>(null);
+  let cleanupPromptWorktree = $state<Worktree | null>(null);
 
   // Watch for project changes and refresh sprint status
   $effect(() => {
@@ -43,11 +55,21 @@
   async function handleProjectChange(projectPath: string | null) {
     // Clean up previous listeners first
     await cleanupListeners();
+    // Clear previous status map on project change to avoid stale data
+    previousStatusMap.clear();
 
     lastProjectPath = projectPath;
 
     if (projectPath && project?.state === 'fully-initialized') {
-      refreshSprintStatus(projectPath);
+      await refreshSprintStatus(projectPath);
+      // Initialize previousStatusMap with current statuses to prevent spurious toasts
+      // This ensures stories already "done" don't trigger cleanup prompts on initial load
+      const currentStatus = get(sprintStatus);
+      if (currentStatus) {
+        for (const story of currentStatus.stories) {
+          previousStatusMap.set(story.id, story.status);
+        }
+      }
       // Validate bindings and refresh worktrees on project load (AC #5)
       validateAndRefreshWorktrees(projectPath);
       // Set up event listeners for sprint status changes
@@ -64,8 +86,20 @@
   async function setupListeners(projectPath: string) {
     try {
       const handlers: EventHandlers = {
-        onStoryStatusChanged: () => {
-          refreshSprintStatus(projectPath);
+        onStoryStatusChanged: async () => {
+          // Capture previous statuses before refresh
+          const currentStatus = get(sprintStatus);
+          if (currentStatus) {
+            for (const story of currentStatus.stories) {
+              previousStatusMap.set(story.id, story.status);
+            }
+          }
+
+          // Refresh the sprint status
+          await refreshSprintStatus(projectPath);
+
+          // Check for stories that transitioned to "done" and have worktrees
+          checkForCompletedStoriesWithWorktrees();
         },
       };
 
@@ -73,6 +107,74 @@
     } catch (err) {
       console.warn('Failed to set up story status listeners:', err);
     }
+  }
+
+  /**
+   * Checks for stories that just transitioned to "done" and have worktrees.
+   * Shows a toast prompting to clean up.
+   */
+  function checkForCompletedStoriesWithWorktrees() {
+    const currentStatus = get(sprintStatus);
+    const worktrees = get(worktreesByStory);
+
+    if (!currentStatus) return;
+
+    for (const story of currentStatus.stories) {
+      const previousStatus = previousStatusMap.get(story.id);
+      const currentStoryStatus = story.status;
+
+      // Detect transition to "done" (from any non-done status)
+      if (previousStatus !== 'done' && currentStoryStatus === 'done') {
+        const worktree = worktrees.get(story.id);
+        if (worktree) {
+          showCleanupPromptToast(story, worktree);
+        }
+      }
+
+      // Update the map for next check
+      previousStatusMap.set(story.id, currentStoryStatus);
+    }
+  }
+
+  /**
+   * Shows a toast prompting to clean up a worktree for a completed story.
+   * AC #1: Shows "Later" and "Clean Up" actions per spec.
+   */
+  function showCleanupPromptToast(story: Story, worktree: Worktree) {
+    const displayId = story.subStoryNumber != null
+      ? `${story.epicId}-${story.storyNumber}-${story.subStoryNumber}`
+      : `${story.epicId}-${story.storyNumber}`;
+
+    const action: ToastAction = {
+      label: 'Clean Up',
+      onClick: () => {
+        cleanupPromptStory = story;
+        cleanupPromptWorktree = worktree;
+      },
+    };
+
+    const secondaryAction: ToastAction = {
+      label: 'Later',
+      onClick: () => {
+        // Dismiss is handled by returning - toast auto-closes
+      },
+    };
+
+    showToast(
+      `Story ${displayId} completed! Worktree can be cleaned up.`,
+      {
+        icon: '✅',
+        duration: 8000, // 8 seconds per UX spec
+        variant: 'success',
+        action,
+        secondaryAction,
+      }
+    );
+  }
+
+  function handleCloseCleanupPrompt() {
+    cleanupPromptStory = null;
+    cleanupPromptWorktree = null;
   }
 
   /**
@@ -179,3 +281,12 @@
     </div>
   {/if}
 </div>
+
+<!-- Cleanup dialog triggered from story completion toast -->
+{#if cleanupPromptStory && cleanupPromptWorktree}
+  <WorktreeCleanupDialog
+    story={cleanupPromptStory}
+    worktree={cleanupPromptWorktree}
+    onClose={handleCloseCleanupPrompt}
+  />
+{/if}

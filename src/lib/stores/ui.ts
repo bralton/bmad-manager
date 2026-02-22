@@ -67,6 +67,7 @@ export interface Toast {
   duration?: number;
   variant?: 'success' | 'error' | 'info';
   action?: ToastAction;
+  secondaryAction?: ToastAction;
 }
 
 /**
@@ -77,6 +78,7 @@ export interface ShowToastOptions {
   duration?: number;
   variant?: 'success' | 'error' | 'info';
   action?: ToastAction;
+  secondaryAction?: ToastAction;
 }
 
 /**
@@ -111,9 +113,10 @@ export function showToast(
     duration = 2000,
     variant = 'info',
     action,
+    secondaryAction,
   } = options;
   const id = crypto.randomUUID();
-  toasts.update((t) => [...t, { id, message, icon, duration, variant, action }]);
+  toasts.update((t) => [...t, { id, message, icon, duration, variant, action, secondaryAction }]);
 
   // Don't auto-dismiss if there's an action button (user needs time to click)
   const actualDuration = action ? Math.max(duration, 4000) : duration;
