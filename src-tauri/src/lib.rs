@@ -1,6 +1,7 @@
 // BMAD Manager - Tauri Backend
 
 mod bmad_parser;
+mod conflict_detection;
 mod file_watcher;
 mod initializer;
 mod process_manager;
@@ -76,6 +77,21 @@ fn get_epic_artifact(project_path: String, epic_id: String) -> Option<bmad_parse
 #[tauri::command]
 fn read_artifact_file(file_path: String) -> Result<String, String> {
     bmad_parser::read_artifact_content(&file_path)
+}
+
+// Conflict detection Tauri commands
+
+/// Gets conflict warnings for active stories in a project.
+///
+/// Parses story files to extract files_to_modify, then detects
+/// overlapping files between the given active stories.
+#[tauri::command]
+fn get_story_conflicts(
+    project_path: String,
+    active_story_ids: Vec<String>,
+) -> Vec<conflict_detection::ConflictWarning> {
+    let path = PathBuf::from(&project_path);
+    conflict_detection::get_story_conflicts(&path, &active_story_ids)
 }
 
 /// Opens a file in the user's configured IDE.
@@ -288,6 +304,7 @@ pub fn run() {
             get_epic_artifact,
             read_artifact_file,
             open_in_ide,
+            get_story_conflicts,
             file_watcher::start_file_watcher,
             file_watcher::stop_file_watcher,
             worktree::commands::create_worktree,

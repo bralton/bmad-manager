@@ -14,6 +14,7 @@
     resetSprintStatus,
   } from '$lib/stores/stories';
   import { validateAndRefreshWorktrees, resetWorktrees, worktreesByStory } from '$lib/stores/worktrees';
+  import { refreshConflicts, resetConflicts } from '$lib/stores/conflicts';
   import { showToast, type ToastAction } from '$lib/stores/ui';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
   import type { UnlistenFn } from '@tauri-apps/api/event';
@@ -72,11 +73,14 @@
       }
       // Validate bindings and refresh worktrees on project load (AC #5)
       validateAndRefreshWorktrees(projectPath);
+      // Refresh conflict detection on project load
+      await refreshConflicts(projectPath);
       // Set up event listeners for sprint status changes
       await setupListeners(projectPath);
     } else {
       resetSprintStatus();
       resetWorktrees();
+      resetConflicts();
     }
   }
 
@@ -98,8 +102,15 @@
           // Refresh the sprint status
           await refreshSprintStatus(projectPath);
 
+          // Refresh conflict detection (AC #5 - conflicts refresh on sprint-status.yaml changes)
+          await refreshConflicts(projectPath);
+
           // Check for stories that transitioned to "done" and have worktrees
           checkForCompletedStoriesWithWorktrees();
+        },
+        // AC #5 - refresh conflicts when story files change
+        onWorkflowStateChanged: async () => {
+          await refreshConflicts(projectPath);
         },
       };
 

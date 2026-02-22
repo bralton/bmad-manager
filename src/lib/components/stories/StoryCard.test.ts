@@ -9,8 +9,10 @@ import { get } from 'svelte/store';
 import StoryCard from './StoryCard.svelte';
 import { selectedStoryId, resetSprintStatus } from '$lib/stores/stories';
 import { worktrees, worktreeCreating, resetWorktrees, setWorktreeCreating } from '$lib/stores/worktrees';
+import { conflictWarnings, resetConflicts } from '$lib/stores/conflicts';
 import type { Story } from '$lib/types/stories';
 import type { Worktree } from '$lib/types/worktree';
+import type { ConflictWarning } from '$lib/types/conflict';
 
 // Mock the worktrees service
 vi.mock('$lib/services/worktrees', () => ({
@@ -49,12 +51,14 @@ describe('StoryCard', () => {
   beforeEach(() => {
     resetSprintStatus();
     resetWorktrees();
+    resetConflicts();
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     resetSprintStatus();
     resetWorktrees();
+    resetConflicts();
   });
 
   const createStory = (overrides: Partial<Story> = {}): Story => ({
@@ -245,6 +249,89 @@ describe('StoryCard', () => {
       render(StoryCard, { props: { story } });
 
       expect(screen.queryByText('WT')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('conflict indicator', () => {
+    const createConflictWarning = (
+      storyId: string,
+      conflictsWith: string,
+      sharedFiles: string[]
+    ): ConflictWarning => ({
+      storyId,
+      conflictsWith,
+      sharedFiles,
+    });
+
+    it('shows conflict warning badge when story has conflicts', () => {
+      const story = createStory({ epicId: '4', storyNumber: 3, slug: 'conflict-detection' });
+      conflictWarnings.set([
+        createConflictWarning('4-3', '4-4', ['src/file.ts']),
+      ]);
+      const { container } = render(StoryCard, { props: { story } });
+
+      // Should have warning icon (amber colored SVG)
+      const warningIcon = container.querySelector('.text-amber-400 svg');
+      expect(warningIcon).toBeInTheDocument();
+    });
+
+    it('does not show conflict badge when no conflicts exist', () => {
+      const story = createStory({ epicId: '4', storyNumber: 3, slug: 'no-conflicts' });
+      conflictWarnings.set([]);
+      const { container } = render(StoryCard, { props: { story } });
+
+      // Should not have warning icon
+      const warningIcon = container.querySelector('.text-amber-400 svg');
+      expect(warningIcon).not.toBeInTheDocument();
+    });
+
+    it('shows conflict tooltip with conflicting story IDs', () => {
+      const story = createStory({ epicId: '4', storyNumber: 3, slug: 'conflict-test' });
+      conflictWarnings.set([
+        createConflictWarning('4-3', '4-4', ['src/file.ts']),
+        createConflictWarning('4-3', '4-5', ['src/other.ts']),
+      ]);
+      const { container } = render(StoryCard, { props: { story } });
+
+      const warningBadge = container.querySelector('.text-amber-400');
+      expect(warningBadge).toBeInTheDocument();
+      expect(warningBadge?.getAttribute('title')).toContain('4-4');
+      expect(warningBadge?.getAttribute('title')).toContain('4-5');
+    });
+
+    it('includes conflict info in aria-label', () => {
+      const story = createStory({ epicId: '4', storyNumber: 3, slug: 'aria-test' });
+      conflictWarnings.set([
+        createConflictWarning('4-3', '4-4', ['src/file.ts']),
+      ]);
+      const { container } = render(StoryCard, { props: { story } });
+
+      // Select the main button element (not the role="button" divs)
+      const button = container.querySelector('button');
+      expect(button?.getAttribute('aria-label')).toContain('has file conflicts');
+    });
+
+    it('does not include conflict info in aria-label when no conflicts', () => {
+      const story = createStory({ epicId: '4', storyNumber: 3, slug: 'no-aria-conflict' });
+      conflictWarnings.set([]);
+      const { container } = render(StoryCard, { props: { story } });
+
+      // Select the main button element (not the role="button" divs)
+      const button = container.querySelector('button');
+      expect(button?.getAttribute('aria-label')).not.toContain('conflict');
+    });
+
+    it('only shows conflicts for this story, not other stories', () => {
+      const story = createStory({ epicId: '4', storyNumber: 3, slug: 'specific-story' });
+      // Only 4-4 has conflicts, not 4-3
+      conflictWarnings.set([
+        createConflictWarning('4-4', '4-5', ['src/file.ts']),
+      ]);
+      const { container } = render(StoryCard, { props: { story } });
+
+      // 4-3 should NOT show conflict badge since 4-4 has the conflict
+      const warningIcon = container.querySelector('.text-amber-400 svg');
+      expect(warningIcon).not.toBeInTheDocument();
     });
   });
 });

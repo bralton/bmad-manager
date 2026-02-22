@@ -3,6 +3,7 @@
   import { selectedStoryId } from '$lib/stores/stories';
   import { currentProject } from '$lib/stores/project';
   import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees, currentWorktreeStoryId } from '$lib/stores/worktrees';
+  import { conflictSummaries } from '$lib/stores/conflicts';
   import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
@@ -33,6 +34,17 @@
       return `${story.epicId}-${story.storyNumber}-${story.subStoryNumber}`;
     }
     return `${story.epicId}-${story.storyNumber}`;
+  });
+
+  // Get conflict summary for this story using displayId
+  let conflictSummary = $derived($conflictSummaries.get(displayId));
+  let hasConflicts = $derived(conflictSummary != null && conflictSummary.conflictCount > 0);
+
+  // Build conflict tooltip text
+  let conflictTooltip = $derived.by(() => {
+    if (!conflictSummary || conflictSummary.conflictCount === 0) return '';
+    const storyIds = conflictSummary.conflicts.map((c) => c.conflictsWith);
+    return `Conflicts with: ${storyIds.join(', ')}`;
   });
 
   // Get the column config for this story's status
@@ -110,7 +122,7 @@
 
   // Build aria label
   let ariaLabel = $derived(
-    `Story ${displayId}: ${title}, status: ${columnConfig.label}${worktree ? ', has worktree' : ''}${isCurrentWorktree ? ', current' : ''}`
+    `Story ${displayId}: ${title}, status: ${columnConfig.label}${worktree ? ', has worktree' : ''}${isCurrentWorktree ? ', current' : ''}${hasConflicts ? ', has file conflicts' : ''}`
   );
 
   // Build CSS classes for button
@@ -141,6 +153,23 @@
 
     <!-- Badges and actions -->
     <div class="flex items-center gap-1">
+      <!-- Conflict warning badge (AC #4) -->
+      {#if hasConflicts}
+        <span
+          class="p-1 text-amber-400"
+          title={conflictTooltip}
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+        </span>
+      {/if}
+
       <!-- View artifact icon (visible on hover, keyboard accessible) -->
       <div
         onclick={handleViewArtifact}

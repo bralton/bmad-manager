@@ -4,10 +4,12 @@
   import { KANBAN_COLUMNS, type Story, type Epic } from '$lib/types/stories';
   import { currentProject } from '$lib/stores/project';
   import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees } from '$lib/stores/worktrees';
+  import { conflictSummaries } from '$lib/stores/conflicts';
   import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
   import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
+  import ConflictWarningBanner from '$lib/components/conflicts/ConflictWarningBanner.svelte';
 
   let {
     story,
@@ -23,6 +25,16 @@
   let worktree = $derived($worktreesByStory.get(story.id));
   let isCreating = $derived($worktreeCreating.get(story.id) ?? false);
 
+  // Get conflict summary for this story using displayId (e.g., "4-3")
+  let displayId = $derived.by(() => {
+    if (story.subStoryNumber != null) {
+      return `${story.epicId}-${story.storyNumber}-${story.subStoryNumber}`;
+    }
+    return `${story.epicId}-${story.storyNumber}`;
+  });
+  let conflictSummary = $derived($conflictSummaries.get(displayId));
+  let hasConflicts = $derived(conflictSummary != null && conflictSummary.conflictCount > 0);
+
   // Cleanup dialog state
   let showCleanupDialog = $state(false);
 
@@ -35,14 +47,6 @@
       .split('-')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
-  });
-
-  // Get display ID
-  let displayId = $derived.by(() => {
-    if (story.subStoryNumber != null) {
-      return `${story.epicId}-${story.storyNumber}-${story.subStoryNumber}`;
-    }
-    return `${story.epicId}-${story.storyNumber}`;
   });
 
   // Get column config for status styling
@@ -226,6 +230,11 @@
 
     <!-- Content -->
     <div class="p-4 space-y-4 overflow-y-auto h-[calc(100%-60px)]">
+      <!-- Conflict Warning Banner -->
+      {#if hasConflicts && conflictSummary}
+        <ConflictWarningBanner conflicts={conflictSummary.conflicts} />
+      {/if}
+
       <!-- Title -->
       <div>
         <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Title</h3>
