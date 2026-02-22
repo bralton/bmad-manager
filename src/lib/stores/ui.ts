@@ -198,3 +198,29 @@ export function closeSettingsModal() {
 export function toggleSettingsModal() {
   settingsModalOpen.update((v) => !v);
 }
+
+/**
+ * Whether the shortcuts cheatsheet is currently open.
+ */
+export const shortcutsCheatsheetOpen = writable<boolean>(false);
+
+/**
+ * Opens the shortcuts cheatsheet.
+ */
+export function openShortcutsCheatsheet() {
+  shortcutsCheatsheetOpen.set(true);
+}
+
+/**
+ * Closes the shortcuts cheatsheet.
+ */
+export function closeShortcutsCheatsheet() {
+  shortcutsCheatsheetOpen.set(false);
+}
+
+/**
+ * Toggles the shortcuts cheatsheet open/closed.
+ */
+export function toggleShortcutsCheatsheet() {
+  shortcutsCheatsheetOpen.update((v) => !v);
+}

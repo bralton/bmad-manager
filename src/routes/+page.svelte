@@ -11,6 +11,7 @@
   import ArtifactBrowser from '$lib/components/artifacts/ArtifactBrowser.svelte';
   import ArtifactViewer from '$lib/components/shared/ArtifactViewer.svelte';
   import CommandPalette from '$lib/components/shared/CommandPalette.svelte';
+  import ShortcutsCheatsheet from '$lib/components/shared/ShortcutsCheatsheet.svelte';
   import Toast from '$lib/components/shared/Toast.svelte';
   import {
     sessions,
@@ -30,7 +31,17 @@
     settingsModalOpen,
     openSettingsModal,
     closeSettingsModal,
+    shortcutsCheatsheetOpen,
+    openShortcutsCheatsheet,
+    closeShortcutsCheatsheet,
+    toggleShortcutsCheatsheet,
   } from '$lib/stores/ui';
+  import {
+    registerGlobalShortcuts,
+    unregisterGlobalShortcuts,
+    setShortcutAction,
+    clearShortcutActions,
+  } from '$lib/services/shortcuts';
   import {
     spawnClaudeSession,
     sendSessionInput,
@@ -52,6 +63,7 @@
   let executedCommand = $derived($lastExecutedCommand);
   let currentView = $derived($activeView);
   let showSettingsModal = $derived($settingsModalOpen);
+  let showCheatsheet = $derived($shortcutsCheatsheetOpen);
 
   // Track when a session is being spawned to prevent duplicate spawns
   let isSpawningSession = $state(false);
@@ -114,6 +126,7 @@
       const cmd = pendingCommand;
       pendingCommand = null;
       // Inject the queued command into the now-ready session
+      // Command is already formatted with bmad- prefix from CommandPalette
       sendSessionInput(activeSession.id, `/${cmd}\n`)
         .then(() => {
           showToast(`Sent /${cmd} to session`, '⚡');
@@ -128,6 +141,7 @@
   /**
    * Handles command injection into active session or spawns a new session.
    * Called when user selects a command from the CommandPalette.
+   * Command is already formatted with proper bmad- prefix.
    */
   async function handleCommandExecution(command: string) {
     const session = activeSession;
@@ -210,55 +224,84 @@
     }
   }
 
-  // Keyboard handler reference for cleanup
-  let keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
+  /**
+   * Starts a new conversation with the default agent.
+   * Shows a toast if no project is loaded.
+   */
+  async function handleNewConversation() {
+    if (!project?.path) {
+      showToast('Open a project first', '✗', 3000);
+      return;
+    }
 
-  // Load settings on mount and set up global keyboard shortcut
+    if (isSpawningSession) {
+      showToast('Session already starting...', '⏳');
+      return;
+    }
+
+    try {
+      isSpawningSession = true;
+      showToast('Starting new conversation...', '🚀');
+      const sessionName = generateSessionName(project.name, 'default');
+      const newSession = await spawnClaudeSession({
+        sessionName,
+        projectPath: project.path,
+      });
+      addSession(newSession);
+      selectSession(newSession.id);
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      showToast(`Failed to start session: ${errorMsg}`, '✗', 4000);
+    } finally {
+      isSpawningSession = false;
+    }
+  }
+
+  /**
+   * Registers all keyboard shortcut actions.
+   */
+  function setupShortcutActions() {
+    // Navigation shortcuts
+    setShortcutAction('view-workflows', () => activeView.set('workflows'));
+    setShortcutAction('view-stories', () => activeView.set('stories'));
+    setShortcutAction('view-artifacts', () => activeView.set('artifacts'));
+
+    // Session shortcuts
+    setShortcutAction('new-conversation', handleNewConversation);
+
+    // General shortcuts
+    setShortcutAction('command-palette', toggleCommandPalette);
+    setShortcutAction('settings', openSettingsModal);
+    setShortcutAction('shortcuts-help', toggleShortcutsCheatsheet);
+    setShortcutAction('close-dialog', () => {
+      // Close in order of priority: cheatsheet, settings, command palette
+      if ($shortcutsCheatsheetOpen) {
+        closeShortcutsCheatsheet();
+      } else if ($settingsModalOpen) {
+        closeSettingsModal();
+      } else {
+        // Let command palette handle its own escape
+      }
+    });
+  }
+
+  // Load settings on mount and set up global keyboard shortcuts
   onMount(() => {
     loadSettings();
 
     // Initialize project from URL params if provided (AC #6 - new window support)
     initializeFromUrlParams();
 
-    // Global keyboard shortcut handler for command palette and view switching
-    // Uses capture phase to intercept before xterm.js
-    keyboardHandler = (e: KeyboardEvent) => {
-      // Cmd+K on macOS, Ctrl+K on Windows/Linux - Command palette
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleCommandPalette();
-      }
-      // Cmd+, - Open settings
-      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-        e.preventDefault();
-        e.stopPropagation();
-        openSettingsModal();
-      }
-      // Cmd+1/2/3 - Switch main views
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
-        if (e.key === '1') {
-          e.preventDefault();
-          activeView.set('workflows');
-        } else if (e.key === '2') {
-          e.preventDefault();
-          activeView.set('stories');
-        } else if (e.key === '3') {
-          e.preventDefault();
-          activeView.set('artifacts');
-        }
-      }
-    };
-
-    window.addEventListener('keydown', keyboardHandler, { capture: true });
+    // Set up keyboard shortcut actions and register handler
+    setupShortcutActions();
+    registerGlobalShortcuts();
   });
 
   // Clean up on destroy
   onDestroy(() => {
-    // Remove keyboard handler
-    if (keyboardHandler) {
-      window.removeEventListener('keydown', keyboardHandler, { capture: true });
-    }
+    // Remove keyboard shortcuts
+    unregisterGlobalShortcuts();
+    clearShortcutActions();
 
     // Stop file watcher
     if (watcherWindowLabel) {
@@ -300,6 +343,11 @@
 <!-- Settings Modal -->
 {#if showSettingsModal}
   <SettingsModal onClose={closeSettingsModal} />
+{/if}
+
+<!-- Shortcuts Cheatsheet -->
+{#if showCheatsheet}
+  <ShortcutsCheatsheet onClose={closeShortcutsCheatsheet} />
 {/if}
 
 <!-- Command Palette -->

@@ -284,8 +284,9 @@ describe('CommandPalette', () => {
       const dialog = screen.getByRole('dialog');
       await fireEvent.keyDown(dialog, { key: 'Enter' });
 
-      expect(onExecute).toHaveBeenCalledWith('create-prd');
-      expect(get(lastExecutedCommand)).toBe('create-prd');
+      // Commands are now formatted with bmad- prefix based on module
+      expect(onExecute).toHaveBeenCalledWith('bmad-bmm-create-prd');
+      expect(get(lastExecutedCommand)).toBe('bmad-bmm-create-prd');
     });
 
     // P1: Test Escape closes palette
@@ -363,7 +364,8 @@ describe('CommandPalette', () => {
       const storyOption = screen.getByRole('option', { name: /create-story/i });
       await fireEvent.click(storyOption);
 
-      expect(onExecute).toHaveBeenCalledWith('create-story');
+      // Commands are now formatted with bmad- prefix based on module
+      expect(onExecute).toHaveBeenCalledWith('bmad-bmm-create-story');
     });
 
     // P1: Test hover updates selectedIndex
@@ -404,7 +406,8 @@ describe('CommandPalette', () => {
       await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
       await fireEvent.keyDown(dialog, { key: 'Enter' });
 
-      expect(get(lastExecutedCommand)).toBe('dev-story');
+      // Commands are now formatted with bmad- prefix based on module
+      expect(get(lastExecutedCommand)).toBe('bmad-bmm-dev-story');
     });
 
     // P1: Test command execution closes palette

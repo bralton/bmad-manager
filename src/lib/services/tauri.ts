@@ -142,5 +142,5 @@ export const workflowApi = {
    * @returns Array of workflow definitions
    */
   getWorkflows: (projectPath: string) =>
-    invoke<Workflow[]>('get_workflows', { project_path: projectPath }),
+    invoke<Workflow[]>('get_workflows', { projectPath }),
 };

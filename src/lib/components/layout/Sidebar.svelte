@@ -11,6 +11,7 @@
   import { addSession, selectSession, sessions } from '$lib/stores/sessions';
   import { currentProject } from '$lib/stores/project';
   import { activeView, setActiveView, openSettingsModal, type MainView } from '$lib/stores/ui';
+  import { formatShortcutDisplay } from '$lib/services/shortcuts';
 
   type SidebarTab = 'agents' | 'sessions';
 
@@ -156,6 +157,7 @@
         {currentView === 'workflows'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+      title="Workflows ({formatShortcutDisplay('Cmd+1')})"
     >
       Workflows
     </button>
@@ -165,6 +167,7 @@
         {currentView === 'stories'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+      title="Stories ({formatShortcutDisplay('Cmd+2')})"
     >
       Stories
     </button>
@@ -174,6 +177,7 @@
         {currentView === 'artifacts'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+      title="Artifacts ({formatShortcutDisplay('Cmd+3')})"
     >
       Artifacts
     </button>
@@ -241,7 +245,7 @@
     <button
       onclick={() => openSettingsModal()}
       class="flex items-center justify-between text-sm text-gray-400 hover:text-white transition-colors w-full group"
-      title="Open settings (Cmd+,)"
+      title="Open settings ({formatShortcutDisplay('Cmd+,')})"
     >
       <span class="flex items-center gap-2">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,7 +254,7 @@
         </svg>
         <span>Settings</span>
       </span>
-      <kbd class="text-xs text-gray-600 group-hover:text-gray-500 font-mono">⌘,</kbd>
+      <kbd class="text-xs text-gray-600 group-hover:text-gray-500 font-mono">{formatShortcutDisplay('Cmd+,')}</kbd>
     </button>
   </div>
 </aside>

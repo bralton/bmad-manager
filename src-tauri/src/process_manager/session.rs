@@ -25,10 +25,13 @@ pub struct SpawnOptions {
     /// Path to the project directory
     pub project_path: PathBuf,
     /// Optional initial command to run (e.g., "/bmad-create-prd")
+    #[serde(default)]
     pub initial_command: Option<String>,
     /// Whether to resume an existing session
+    #[serde(default)]
     pub resume: bool,
     /// Claude CLI's session UUID (required for resume, generated for new sessions)
+    #[serde(default)]
     pub claude_session_id: Option<String>,
 }
 

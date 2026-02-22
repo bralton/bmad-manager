@@ -97,7 +97,7 @@
       case 'Enter':
         e.preventDefault();
         if (filteredWorkflows[selectedIndex]) {
-          executeCommand(filteredWorkflows[selectedIndex].name);
+          executeCommand(filteredWorkflows[selectedIndex]);
         }
         break;
       case 'Escape':
@@ -119,14 +119,32 @@
     selectedItem?.scrollIntoView({ block: 'nearest' });
   }
 
-  function executeCommand(commandName: string) {
+  /**
+   * Formats a workflow as a BMAD skill command name.
+   * Core module: bmad-{name}
+   * BMM module: bmad-bmm-{name}
+   */
+  function formatSkillName(workflow: Workflow): string {
+    const { name, module } = workflow;
+    if (module === 'core') {
+      return `bmad-${name}`;
+    } else if (module === 'bmm') {
+      return `bmad-bmm-${name}`;
+    }
+    // Fallback for unknown modules
+    return `bmad-${module}-${name}`;
+  }
+
+  function executeCommand(workflow: Workflow) {
+    const skillName = formatSkillName(workflow);
+
     // Store command for story 2-6 to inject
     // Note: Toast is shown by +page.svelte handler based on action taken
     // (active session injection vs new session spawn)
-    setLastExecutedCommand(commandName);
+    setLastExecutedCommand(skillName);
 
     // Call optional handler
-    onExecute?.(commandName);
+    onExecute?.(skillName);
 
     // Close palette
     closeCommandPalette();
@@ -255,7 +273,7 @@
               role="option"
               aria-selected={isSelected}
               aria-label={`${workflow.name}: ${workflow.description}`}
-              onclick={() => executeCommand(workflow.name)}
+              onclick={() => executeCommand(workflow)}
               onmouseenter={() => (selectedIndex = index)}
               class="w-full text-left px-4 py-3 flex flex-col gap-1 transition-colors
                      {isSelected
