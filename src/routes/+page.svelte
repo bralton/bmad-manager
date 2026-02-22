@@ -6,6 +6,7 @@
   import SessionTabs from '$lib/components/conversation/SessionTabs.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
   import WorkflowVisualizerContainer from '$lib/components/workflow/WorkflowVisualizerContainer.svelte';
+  import StoryBoardContainer from '$lib/components/stories/StoryBoardContainer.svelte';
   import CommandPalette from '$lib/components/shared/CommandPalette.svelte';
   import Toast from '$lib/components/shared/Toast.svelte';
   import {
@@ -18,6 +19,7 @@
   import { showWizard, loadSettings, settingsLoading, settingsError } from '$lib/stores/settings';
   import { currentProject } from '$lib/stores/project';
   import {
+    activeView,
     toggleCommandPalette,
     lastExecutedCommand,
     clearLastExecutedCommand,
@@ -38,6 +40,7 @@
   let project = $derived($currentProject);
   let activeSession = $derived($currentSession);
   let executedCommand = $derived($lastExecutedCommand);
+  let currentView = $derived($activeView);
 
   // Track when a session is being spawned to prevent duplicate spawns
   let isSpawningSession = $state(false);
@@ -179,8 +182,13 @@
   <Sidebar />
 
   <main class="flex-1 flex flex-col min-w-0">
-    <!-- Workflow Visualizer always visible at top when project is loaded -->
-    <WorkflowVisualizerContainer />
+    {#if currentView === 'stories'}
+      <!-- Story Board View -->
+      <StoryBoardContainer />
+    {:else}
+      <!-- Workflow View (default) -->
+      <!-- Workflow Visualizer always visible at top when project is loaded -->
+      <WorkflowVisualizerContainer />
 
     {#if hasAnySessions}
       <!-- Session tabs when multiple sessions exist -->
@@ -227,6 +235,7 @@
 
         <ProjectPicker />
       </div>
+    {/if}
     {/if}
   </main>
 </div>

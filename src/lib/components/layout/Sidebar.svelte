@@ -10,10 +10,12 @@
   } from '$lib/services/process';
   import { addSession, selectSession, sessions } from '$lib/stores/sessions';
   import { currentProject } from '$lib/stores/project';
+  import { activeView, setActiveView, type MainView } from '$lib/stores/ui';
 
   type SidebarTab = 'agents' | 'sessions';
 
   let activeTab: SidebarTab = $state('agents');
+  let currentView = $derived($activeView);
   let historicalSessions: SessionRecord[] = $state([]);
   let isLoadingSessions = $state(false);
   let isSearching = $state(false);
@@ -144,6 +146,28 @@
 <aside class="w-64 h-screen bg-gray-900 border-r border-gray-800 flex flex-col overflow-x-hidden">
   <div class="p-4 border-b border-gray-800">
     <h2 class="text-lg font-semibold text-gray-200">BMAD Manager</h2>
+  </div>
+
+  <!-- Main View Switcher -->
+  <div class="flex border-b border-gray-800">
+    <button
+      onclick={() => setActiveView('workflows')}
+      class="flex-1 px-3 py-2 text-xs font-medium transition-colors
+        {currentView === 'workflows'
+        ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
+        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+    >
+      Workflows
+    </button>
+    <button
+      onclick={() => setActiveView('stories')}
+      class="flex-1 px-3 py-2 text-xs font-medium transition-colors
+        {currentView === 'stories'
+        ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
+        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+    >
+      Stories
+    </button>
   </div>
 
   <!-- Tab switcher -->

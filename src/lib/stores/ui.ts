@@ -1,9 +1,27 @@
 /**
  * Svelte stores for UI state management.
- * Handles command palette, toasts, and other global UI state.
+ * Handles command palette, toasts, active views, and other global UI state.
  */
 
 import { writable } from 'svelte/store';
+
+/**
+ * Available main views in the application.
+ */
+export type MainView = 'workflows' | 'stories';
+
+/**
+ * The currently active main view.
+ * Determines what content is shown in the main panel.
+ */
+export const activeView = writable<MainView>('workflows');
+
+/**
+ * Sets the active main view.
+ */
+export function setActiveView(view: MainView) {
+  activeView.set(view);
+}
 
 /**
  * Whether the command palette is currently open.
