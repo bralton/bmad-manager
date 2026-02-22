@@ -172,3 +172,29 @@ export function setLastExecutedCommand(command: string) {
 export function clearLastExecutedCommand() {
   lastExecutedCommand.set(null);
 }
+
+/**
+ * Whether the settings modal is currently open.
+ */
+export const settingsModalOpen = writable<boolean>(false);
+
+/**
+ * Opens the settings modal.
+ */
+export function openSettingsModal() {
+  settingsModalOpen.set(true);
+}
+
+/**
+ * Closes the settings modal.
+ */
+export function closeSettingsModal() {
+  settingsModalOpen.set(false);
+}
+
+/**
+ * Toggles the settings modal open/closed.
+ */
+export function toggleSettingsModal() {
+  settingsModalOpen.update((v) => !v);
+}

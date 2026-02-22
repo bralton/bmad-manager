@@ -162,6 +162,32 @@ fn check_dependencies() -> Vec<settings::DependencyStatus> {
     settings::check_dependencies()
 }
 
+/// Gets project-specific settings from the project directory.
+/// Returns default (empty) settings if no project settings file exists.
+#[tauri::command]
+fn get_project_settings(project_path: String) -> Result<settings::ProjectSettings, settings::SettingsError> {
+    let path = PathBuf::from(&project_path);
+    settings::get_project_settings(&path)
+}
+
+/// Saves project-specific settings to the project directory.
+/// Creates the .bmad-manager directory if it doesn't exist.
+#[tauri::command]
+fn save_project_settings(project_path: String, settings_data: settings::ProjectSettings) -> Result<(), settings::SettingsError> {
+    let path = PathBuf::from(&project_path);
+    settings::save_project_settings(&path, &settings_data)
+}
+
+/// Gets effective settings by merging global and project-specific settings.
+/// Project settings take precedence over global settings when present.
+#[tauri::command]
+fn get_effective_settings(project_path: String) -> Result<settings::EffectiveSettings, settings::SettingsError> {
+    let path = PathBuf::from(&project_path);
+    let global = settings::get_settings()?;
+    let project = settings::get_project_settings(&path)?;
+    Ok(settings::get_effective_settings(&global, &project))
+}
+
 // Session registry Tauri commands
 
 /// Gets recent sessions across all projects.
@@ -295,6 +321,9 @@ pub fn run() {
             save_settings,
             is_wizard_completed,
             check_dependencies,
+            get_project_settings,
+            save_project_settings,
+            get_effective_settings,
             get_artifacts,
             get_workflow_state,
             get_workflows,

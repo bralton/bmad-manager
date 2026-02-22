@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { Project, ProjectState, InitOptions } from '$lib/types/project';
-import type { GlobalSettings, DependencyStatus } from '$lib/types/settings';
+import type { GlobalSettings, DependencyStatus, ProjectSettings, EffectiveSettings } from '$lib/types/settings';
 import type { ArtifactMeta, WorkflowState, Workflow } from '$lib/types/workflow';
 
 /**
@@ -72,7 +72,7 @@ export const settingsApi = {
    * @param settings - Settings to save
    */
   saveSettings: (settings: GlobalSettings) =>
-    invoke<void>('save_settings', { settings_data: settings }),
+    invoke<void>('save_settings', { settingsData: settings }),
 
   /**
    * Checks if the first-run wizard has been completed.
@@ -83,6 +83,31 @@ export const settingsApi = {
    * Checks all required external dependencies.
    */
   checkDependencies: () => invoke<DependencyStatus[]>('check_dependencies'),
+
+  /**
+   * Gets project-specific settings from the project directory.
+   * Returns default (empty) settings if no project settings file exists.
+   * @param projectPath - Absolute path to the project directory
+   */
+  getProjectSettings: (projectPath: string) =>
+    invoke<ProjectSettings>('get_project_settings', { projectPath }),
+
+  /**
+   * Saves project-specific settings to the project directory.
+   * Creates the .bmad-manager directory if it doesn't exist.
+   * @param projectPath - Absolute path to the project directory
+   * @param settings - Project settings to save
+   */
+  saveProjectSettings: (projectPath: string, settings: ProjectSettings) =>
+    invoke<void>('save_project_settings', { projectPath, settingsData: settings }),
+
+  /**
+   * Gets effective settings by merging global and project-specific settings.
+   * Project settings take precedence over global settings when present.
+   * @param projectPath - Absolute path to the project directory
+   */
+  getEffectiveSettings: (projectPath: string) =>
+    invoke<EffectiveSettings>('get_effective_settings', { projectPath }),
 };
 
 /**

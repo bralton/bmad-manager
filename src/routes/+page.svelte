@@ -5,6 +5,7 @@
   import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
   import SessionTabs from '$lib/components/conversation/SessionTabs.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
+  import SettingsModal from '$lib/components/settings/SettingsModal.svelte';
   import WorkflowVisualizerContainer from '$lib/components/workflow/WorkflowVisualizerContainer.svelte';
   import StoryBoardContainer from '$lib/components/stories/StoryBoardContainer.svelte';
   import ArtifactBrowser from '$lib/components/artifacts/ArtifactBrowser.svelte';
@@ -26,6 +27,9 @@
     lastExecutedCommand,
     clearLastExecutedCommand,
     showToast,
+    settingsModalOpen,
+    openSettingsModal,
+    closeSettingsModal,
   } from '$lib/stores/ui';
   import {
     spawnClaudeSession,
@@ -47,6 +51,7 @@
   let activeSession = $derived($currentSession);
   let executedCommand = $derived($lastExecutedCommand);
   let currentView = $derived($activeView);
+  let showSettingsModal = $derived($settingsModalOpen);
 
   // Track when a session is being spawned to prevent duplicate spawns
   let isSpawningSession = $state(false);
@@ -224,6 +229,12 @@
         e.stopPropagation();
         toggleCommandPalette();
       }
+      // Cmd+, - Open settings
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        e.stopPropagation();
+        openSettingsModal();
+      }
       // Cmd+1/2/3 - Switch main views
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         if (e.key === '1') {
@@ -284,6 +295,11 @@
 <!-- First Run Wizard Modal -->
 {#if wizardVisible && !isLoadingSettings}
   <FirstRunWizard />
+{/if}
+
+<!-- Settings Modal -->
+{#if showSettingsModal}
+  <SettingsModal onClose={closeSettingsModal} />
 {/if}
 
 <!-- Command Palette -->

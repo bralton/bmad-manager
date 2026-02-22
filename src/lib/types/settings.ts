@@ -52,3 +52,37 @@ export interface DependencyStatus {
   minVersion: string | null;
   versionOk: boolean;
 }
+
+/**
+ * Project-specific settings that can override global defaults.
+ * All fields are optional - when undefined, the global setting is used.
+ */
+export interface ProjectSettings {
+  /** Override for git branch pattern (e.g., "feature/{story_id}-{slug}") */
+  branchPattern?: string;
+  /** Override for worktree location ("sibling" or "subdirectory") */
+  worktreeLocation?: string;
+  /** Override for IDE command (e.g., "cursor .") */
+  ideCommand?: string;
+}
+
+/**
+ * Effective settings after merging global and project-specific settings.
+ * All values are resolved - project settings take precedence when present.
+ */
+export interface EffectiveSettings {
+  /** User name from global settings */
+  userName: string;
+  /** Theme from global settings */
+  theme: string;
+  /** IDE command (project override or global) */
+  ideCommand: string;
+  /** Default workflow style from global settings */
+  defaultWorkflow: string;
+  /** Show agent icons from global settings */
+  showAgentIcons: boolean;
+  /** Branch pattern (project override or global) */
+  branchPattern: string;
+  /** Worktree location (project override or global) */
+  worktreeLocation: string;
+}
