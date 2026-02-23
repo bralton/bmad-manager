@@ -12,11 +12,11 @@ import * as uiStore from '$lib/stores/ui';
 // Mock stores
 vi.mock('$lib/stores/ui', async () => {
   const { writable } = await import('svelte/store');
-  const activeView = writable<'workflows' | 'stories' | 'artifacts'>('workflows');
+  const activeView = writable<'dashboards' | 'workflows' | 'stories' | 'artifacts'>('workflows');
 
   return {
     activeView,
-    setActiveView: vi.fn((view: 'workflows' | 'stories' | 'artifacts') => {
+    setActiveView: vi.fn((view: 'dashboards' | 'workflows' | 'stories' | 'artifacts') => {
       activeView.set(view);
     }),
     openSettingsModal: vi.fn(),
@@ -208,6 +208,178 @@ describe('Sidebar', () => {
       render(Sidebar);
 
       expect(screen.getByText('Settings')).toBeInTheDocument();
+    });
+  });
+
+  describe('sidebar persistence (Story 5-2)', () => {
+    it('maintains sidebar tab selection when main view changes', async () => {
+      // AC2: Sidebar tab state preserved across main view changes
+      render(Sidebar);
+
+      // Switch to Sessions tab in sidebar
+      const sessionsTab = screen.getByRole('button', { name: /^Sessions$/i });
+      await fireEvent.click(sessionsTab);
+      expect(sessionsTab).toHaveClass('border-blue-500');
+
+      // Switch main view from workflows to stories
+      const storiesButton = screen.getByRole('button', { name: /Stories/i });
+      await fireEvent.click(storiesButton);
+
+      // Assert sidebar still shows Sessions tab (not reset to Agents)
+      expect(sessionsTab).toHaveClass('border-blue-500');
+      const agentsTab = screen.getByRole('button', { name: /^Agents$/i });
+      expect(agentsTab).not.toHaveClass('border-blue-500');
+    });
+
+    it('maintains sidebar tab after multiple main view switches', async () => {
+      // AC2: Extended - verify persistence across multiple switches
+      render(Sidebar);
+
+      // Switch to Sessions tab
+      const sessionsTab = screen.getByRole('button', { name: /^Sessions$/i });
+      await fireEvent.click(sessionsTab);
+
+      // Switch main views: workflows -> stories -> artifacts -> dashboards
+      await fireEvent.click(screen.getByRole('button', { name: /Stories/i }));
+      await fireEvent.click(screen.getByRole('button', { name: /Artifacts/i }));
+      await fireEvent.click(screen.getByRole('button', { name: /Dashboards/i }));
+
+      // Sessions tab should still be selected
+      expect(sessionsTab).toHaveClass('border-blue-500');
+    });
+
+    it('does not auto-switch main view when changing sidebar tabs', async () => {
+      // AC3/AC4: Main view stays the same when interacting with sidebar
+      (uiStore.activeView as { set: (v: string) => void }).set('artifacts');
+
+      render(Sidebar);
+
+      // Click sidebar tabs back and forth
+      const sessionsTab = screen.getByRole('button', { name: /^Sessions$/i });
+      const agentsTab = screen.getByRole('button', { name: /^Agents$/i });
+
+      await fireEvent.click(sessionsTab);
+      await fireEvent.click(agentsTab);
+      await fireEvent.click(sessionsTab);
+
+      // Main view should NOT have been changed - setActiveView should not be called
+      // except when clicking main view buttons
+      expect(uiStore.setActiveView).not.toHaveBeenCalled();
+
+      // Now click a main view button and verify it IS called
+      await fireEvent.click(screen.getByRole('button', { name: /Stories/i }));
+      expect(uiStore.setActiveView).toHaveBeenCalledWith('stories');
+    });
+
+    it('preserves sidebar state independently of main view state', async () => {
+      // AC5: Sidebar state independent of main view
+      render(Sidebar);
+
+      // Set initial states
+      const sessionsTab = screen.getByRole('button', { name: /^Sessions$/i });
+      await fireEvent.click(sessionsTab);
+
+      // Get initial activeView
+      const initialView = 'workflows';
+
+      // Switch main view multiple times
+      await fireEvent.click(screen.getByRole('button', { name: /Dashboards/i }));
+      await fireEvent.click(screen.getByRole('button', { name: /Workflows/i }));
+
+      // Sidebar tab should still be Sessions
+      expect(sessionsTab).toHaveClass('border-blue-500');
+    });
+
+    it('renders sidebar without layout shift between tab switches', async () => {
+      // AC6: No layout shift - sidebar dimensions remain constant
+      const { container } = render(Sidebar);
+      const aside = container.querySelector('aside');
+
+      // Get initial dimensions
+      expect(aside).toHaveClass('w-72', 'h-screen');
+
+      // Switch main views
+      await fireEvent.click(screen.getByRole('button', { name: /Stories/i }));
+      await fireEvent.click(screen.getByRole('button', { name: /Artifacts/i }));
+
+      // Dimensions should remain the same
+      expect(aside).toHaveClass('w-72', 'h-screen');
+    });
+
+    it('maintains search input value when switching main views', async () => {
+      // AC2: Search query preserved across main view changes
+      render(Sidebar);
+
+      // Switch to Sessions tab to show SessionList with search
+      const sessionsTab = screen.getByRole('button', { name: /^Sessions$/i });
+      await fireEvent.click(sessionsTab);
+
+      // Find and interact with search input
+      const searchInput = screen.getByPlaceholderText('Search sessions...');
+      await fireEvent.input(searchInput, { target: { value: 'test query' } });
+
+      // Verify search input has value
+      expect(searchInput).toHaveValue('test query');
+
+      // Switch main view multiple times
+      await fireEvent.click(screen.getByRole('button', { name: /Stories/i }));
+      await fireEvent.click(screen.getByRole('button', { name: /Artifacts/i }));
+      await fireEvent.click(screen.getByRole('button', { name: /Dashboards/i }));
+
+      // Search input should still have the same value (component stayed mounted)
+      expect(searchInput).toHaveValue('test query');
+    });
+
+    it('session resume via selectSession does not modify activeView', async () => {
+      // AC3: Session actions work from any view - selectSession should not change view
+      // This verifies the architectural guarantee that selectSession only updates
+      // currentSessionId and sessionsWithNewOutput, never activeView
+      const { selectSession } = await import('$lib/stores/sessions');
+
+      // Set initial view to artifacts
+      (uiStore.activeView as { set: (v: string) => void }).set('artifacts');
+
+      render(Sidebar);
+
+      // Simulate what happens when a session is resumed: selectSession is called
+      // This mimics the handleResume flow in Sidebar.svelte
+      selectSession('test-session-123');
+
+      // Verify setActiveView was NOT called - the view should stay on artifacts
+      expect(uiStore.setActiveView).not.toHaveBeenCalled();
+
+      // Verify the artifacts button is still highlighted (view unchanged)
+      const artifactsButton = screen.getByRole('button', { name: /Artifacts/i });
+      expect(artifactsButton).toHaveClass('border-blue-500');
+    });
+
+    it('agent spawn via selectSession does not modify activeView', async () => {
+      // AC4: Agent actions work from any view - spawning a session should not change view
+      // This verifies that addSession + selectSession (the agent click flow) doesn't change views
+      const { addSession, selectSession } = await import('$lib/stores/sessions');
+
+      // Set initial view to stories
+      (uiStore.activeView as { set: (v: string) => void }).set('stories');
+
+      render(Sidebar);
+
+      // Simulate the agent click flow: addSession then selectSession
+      // (matching AgentRoster.svelte:69-71)
+      addSession({
+        id: 'new-agent-session',
+        name: 'test-session',
+        status: 'active',
+        projectPath: '/test/project',
+        startedAt: new Date().toISOString(),
+      } as any);
+      selectSession('new-agent-session');
+
+      // Verify setActiveView was NOT called - the view should stay on stories
+      expect(uiStore.setActiveView).not.toHaveBeenCalled();
+
+      // Verify the stories button is still highlighted (view unchanged)
+      const storiesButton = screen.getByRole('button', { name: /Stories/i });
+      expect(storiesButton).toHaveClass('border-blue-500');
     });
   });
 });
