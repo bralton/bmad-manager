@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Project, ProjectState, InitOptions } from '$lib/types/project';
 import type { GlobalSettings, DependencyStatus, ProjectSettings, EffectiveSettings } from '$lib/types/settings';
-import type { ArtifactMeta, WorkflowState, Workflow } from '$lib/types/workflow';
+import type { ArtifactMeta, WorkflowState, Workflow, StoryProgress } from '$lib/types/workflow';
 
 /**
  * API for project-related operations.
@@ -143,4 +143,13 @@ export const workflowApi = {
    */
   getWorkflows: (projectPath: string) =>
     invoke<Workflow[]>('get_workflows', { projectPath }),
+
+  /**
+   * Gets story tasks from a story file.
+   * Parses markdown task checkboxes to show task progress.
+   * @param storyPath - Absolute path to the story markdown file
+   * @returns Story tasks with progress info, or null if no tasks found
+   */
+  getStoryTasks: (storyPath: string) =>
+    invoke<StoryProgress | null>('get_story_tasks', { storyPath }),
 };

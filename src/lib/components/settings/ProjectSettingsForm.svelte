@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { GlobalSettings, ProjectSettings } from '$lib/types/settings';
   import {
     validateBranchPattern,
@@ -19,8 +20,8 @@
     onValidChange: (valid: boolean) => void;
   } = $props();
 
-  // Local form state - initialize from props using JSON to avoid structuredClone issues
-  let formData = $state<ProjectSettings>(JSON.parse(JSON.stringify(settings)));
+  // Local form state - initialize from props once (intentionally non-reactive)
+  let formData = $state<ProjectSettings>(untrack(() => JSON.parse(JSON.stringify(settings))));
 
   // Field errors
   let errors = $state<Record<string, string | undefined>>({});

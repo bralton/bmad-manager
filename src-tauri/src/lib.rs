@@ -88,6 +88,14 @@ fn get_epic_titles(project_path: String) -> std::collections::HashMap<String, St
     bmad_parser::epic_parser::parse_epic_titles(&path)
 }
 
+/// Gets story tasks from a story file.
+/// Parses markdown task checkboxes to show task progress in the workflow dashboard.
+#[tauri::command]
+fn get_story_tasks(story_path: String) -> Option<bmad_parser::story_tasks::StoryTasks> {
+    let path = PathBuf::from(&story_path);
+    bmad_parser::story_tasks::parse_story_tasks(&path)
+}
+
 // Conflict detection Tauri commands
 
 /// Gets conflict warnings for active stories in a project.
@@ -342,6 +350,7 @@ pub fn run() {
             get_epic_artifact,
             read_artifact_file,
             get_epic_titles,
+            get_story_tasks,
             open_in_ide,
             get_story_conflicts,
             file_watcher::start_file_watcher,

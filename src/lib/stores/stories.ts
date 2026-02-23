@@ -34,6 +34,14 @@ export const sprintStatusError = writable<string | null>(null);
 export const selectedStoryId = writable<string | null>(null);
 
 /**
+ * Sets the currently selected story ID.
+ * @param storyId - The story ID to select, or null to clear selection
+ */
+export function setSelectedStoryId(storyId: string | null): void {
+  selectedStoryId.set(storyId);
+}
+
+/**
  * Derived store that groups stories by their status for kanban columns.
  * Returns a Map where keys are StoryStatus and values are arrays of stories.
  */

@@ -3,9 +3,15 @@
  * These persist across component mounts and provide reactive state.
  */
 
-import { writable, get } from 'svelte/store';
-import type { WorkflowState } from '$lib/types/workflow';
+import { writable, derived, get } from 'svelte/store';
+import type {
+  WorkflowState,
+  WorkflowViewMode,
+  EpicProgress,
+  SprintProgress,
+} from '$lib/types/workflow';
 import { artifactApi } from '$lib/services/tauri';
+import { sprintStatus, epicTitles } from '$lib/stores/stories';
 
 /**
  * The current workflow state, or null if not loaded.
@@ -60,3 +66,107 @@ export function resetWorkflowState(): void {
   workflowLoading.set(false);
   workflowError.set(null);
 }
+
+// =====================================================================
+// Workflow Dashboard Stores (Story 4-8: Multi-Workflow Visualization)
+// =====================================================================
+
+const STORAGE_KEY = 'workflow-dashboard-view-mode';
+
+/**
+ * Loads the persisted view mode from localStorage.
+ */
+function loadPersistedViewMode(): WorkflowViewMode {
+  if (typeof localStorage === 'undefined') {
+    return 'phase';
+  }
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored === 'phase' || stored === 'epic' || stored === 'sprint' || stored === 'story') {
+    return stored;
+  }
+  return 'phase';
+}
+
+/**
+ * The currently selected workflow dashboard view mode.
+ * Persisted to localStorage.
+ */
+export const workflowViewMode = writable<WorkflowViewMode>(loadPersistedViewMode());
+
+/**
+ * Subscribes to workflowViewMode changes and persists to localStorage.
+ */
+workflowViewMode.subscribe((mode) => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, mode);
+  }
+});
+
+/**
+ * Sets the workflow view mode and persists to localStorage.
+ */
+export function setWorkflowViewMode(mode: WorkflowViewMode): void {
+  workflowViewMode.set(mode);
+}
+
+/**
+ * Derived store for epic progress.
+ * Combines sprintStatus and epicTitles to compute progress for each epic.
+ */
+export const epicProgress = derived(
+  [sprintStatus, epicTitles],
+  ([$status, $titles]): EpicProgress[] => {
+    if (!$status) {
+      return [];
+    }
+
+    return $status.epics.map((epic) => {
+      // Get all stories for this epic
+      const stories = $status.stories.filter((s) => s.epicId === epic.id);
+      const doneCount = stories.filter((s) => s.status === 'done').length;
+      const inProgressCount = stories.filter((s) => s.status === 'in-progress').length;
+      const total = stories.length;
+      const percentage = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+      return {
+        epicId: epic.id,
+        title: $titles.get(epic.id) ?? `Epic ${epic.id}`,
+        status: epic.status,
+        stats: {
+          total,
+          done: doneCount,
+          inProgress: inProgressCount,
+          percentage,
+        },
+      };
+    });
+  }
+);
+
+/**
+ * Derived store for sprint progress metrics.
+ * Aggregates story counts by status from sprintStatus.
+ */
+export const sprintProgress = derived(sprintStatus, ($status): SprintProgress | null => {
+  if (!$status) {
+    return null;
+  }
+
+  const stories = $status.stories;
+  const counts = {
+    backlog: stories.filter((s) => s.status === 'backlog').length,
+    ready: stories.filter((s) => s.status === 'ready-for-dev').length,
+    inProgress: stories.filter((s) => s.status === 'in-progress').length,
+    review: stories.filter((s) => s.status === 'review').length,
+    done: stories.filter((s) => s.status === 'done').length,
+  };
+
+  const total = stories.length;
+  const percentage = total > 0 ? Math.round((counts.done / total) * 100) : 0;
+
+  return {
+    counts,
+    total,
+    percentage,
+  };
+});

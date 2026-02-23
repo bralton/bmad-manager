@@ -1,6 +1,7 @@
 /**
  * Unit tests for workflow.ts store.
- * Tests store initialization, refreshWorkflowState, and resetWorkflowState.
+ * Tests store initialization, refreshWorkflowState, resetWorkflowState,
+ * and workflow dashboard stores (workflowViewMode, epicProgress, sprintProgress).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -11,8 +12,14 @@ import {
   workflowError,
   refreshWorkflowState,
   resetWorkflowState,
+  workflowViewMode,
+  setWorkflowViewMode,
+  epicProgress,
+  sprintProgress,
 } from './workflow';
-import type { WorkflowState } from '$lib/types/workflow';
+import type { WorkflowState, WorkflowViewMode } from '$lib/types/workflow';
+import { sprintStatus, epicTitles } from '$lib/stores/stories';
+import type { SprintStatus } from '$lib/types/stories';
 
 // Mock the artifactApi
 vi.mock('$lib/services/tauri', () => ({
@@ -20,6 +27,25 @@ vi.mock('$lib/services/tauri', () => ({
     getWorkflowState: vi.fn(),
   },
 }));
+
+// Mock localStorage
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
+  };
+})();
+
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
 
 import { artifactApi } from '$lib/services/tauri';
 const mockGetWorkflowState = artifactApi.getWorkflowState as ReturnType<typeof vi.fn>;
@@ -181,6 +207,212 @@ describe('workflow store', () => {
       expect(get(workflowState)).toBeNull();
       expect(get(workflowLoading)).toBe(false);
       expect(get(workflowError)).toBeNull();
+    });
+  });
+
+  // =====================================================================
+  // Workflow Dashboard Stores Tests (Story 4-8)
+  // =====================================================================
+
+  describe('workflowViewMode', () => {
+    beforeEach(() => {
+      localStorageMock.clear();
+      // Reset to default 'phase' since localStorage is cleared
+      workflowViewMode.set('phase');
+    });
+
+    it('initializes to phase by default', () => {
+      expect(get(workflowViewMode)).toBe('phase');
+    });
+
+    it('setWorkflowViewMode updates the store', () => {
+      setWorkflowViewMode('epic');
+      expect(get(workflowViewMode)).toBe('epic');
+    });
+
+    it('persists view mode to localStorage', () => {
+      setWorkflowViewMode('sprint');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'workflow-dashboard-view-mode',
+        'sprint'
+      );
+    });
+
+    it('accepts all valid view modes', () => {
+      const modes: WorkflowViewMode[] = ['phase', 'epic', 'sprint', 'story'];
+      for (const mode of modes) {
+        setWorkflowViewMode(mode);
+        expect(get(workflowViewMode)).toBe(mode);
+      }
+    });
+  });
+
+  describe('epicProgress', () => {
+    beforeEach(() => {
+      // Reset stores
+      sprintStatus.set(null);
+      epicTitles.set(new Map());
+    });
+
+    it('returns empty array when sprintStatus is null', () => {
+      expect(get(epicProgress)).toEqual([]);
+    });
+
+    it('computes progress for each epic', () => {
+      const mockStatus: SprintStatus = {
+        generated: '2026-02-23',
+        project: 'test',
+        epics: [
+          { id: '1', status: 'done' },
+          { id: '2', status: 'in-progress' },
+        ],
+        stories: [
+          { id: '1-1-test', epicId: '1', storyNumber: 1, slug: 'test', status: 'done' },
+          { id: '1-2-test', epicId: '1', storyNumber: 2, slug: 'test', status: 'done' },
+          { id: '2-1-test', epicId: '2', storyNumber: 1, slug: 'test', status: 'done' },
+          { id: '2-2-test', epicId: '2', storyNumber: 2, slug: 'test', status: 'in-progress' },
+          { id: '2-3-test', epicId: '2', storyNumber: 3, slug: 'test', status: 'backlog' },
+        ],
+      };
+
+      sprintStatus.set(mockStatus);
+      epicTitles.set(
+        new Map([
+          ['1', 'Foundation'],
+          ['2', 'Feature Sprint'],
+        ])
+      );
+
+      const progress = get(epicProgress);
+
+      expect(progress).toHaveLength(2);
+
+      // Epic 1: 2/2 done = 100%
+      expect(progress[0]).toEqual({
+        epicId: '1',
+        title: 'Foundation',
+        status: 'done',
+        stats: {
+          total: 2,
+          done: 2,
+          inProgress: 0,
+          percentage: 100,
+        },
+      });
+
+      // Epic 2: 1/3 done = 33%
+      expect(progress[1]).toEqual({
+        epicId: '2',
+        title: 'Feature Sprint',
+        status: 'in-progress',
+        stats: {
+          total: 3,
+          done: 1,
+          inProgress: 1,
+          percentage: 33,
+        },
+      });
+    });
+
+    it('uses fallback title when epicTitles is empty', () => {
+      const mockStatus: SprintStatus = {
+        generated: '2026-02-23',
+        project: 'test',
+        epics: [{ id: '3', status: 'backlog' }],
+        stories: [],
+      };
+
+      sprintStatus.set(mockStatus);
+      epicTitles.set(new Map());
+
+      const progress = get(epicProgress);
+      expect(progress[0].title).toBe('Epic 3');
+    });
+
+    it('handles epic with no stories', () => {
+      const mockStatus: SprintStatus = {
+        generated: '2026-02-23',
+        project: 'test',
+        epics: [{ id: '1', status: 'backlog' }],
+        stories: [],
+      };
+
+      sprintStatus.set(mockStatus);
+
+      const progress = get(epicProgress);
+      expect(progress[0].stats).toEqual({
+        total: 0,
+        done: 0,
+        inProgress: 0,
+        percentage: 0,
+      });
+    });
+  });
+
+  describe('sprintProgress', () => {
+    beforeEach(() => {
+      sprintStatus.set(null);
+    });
+
+    it('returns null when sprintStatus is null', () => {
+      expect(get(sprintProgress)).toBeNull();
+    });
+
+    it('computes counts by status', () => {
+      const mockStatus: SprintStatus = {
+        generated: '2026-02-23',
+        project: 'test',
+        epics: [],
+        stories: [
+          { id: '1-1', epicId: '1', storyNumber: 1, slug: 'a', status: 'backlog' },
+          { id: '1-2', epicId: '1', storyNumber: 2, slug: 'b', status: 'backlog' },
+          { id: '1-3', epicId: '1', storyNumber: 3, slug: 'c', status: 'ready-for-dev' },
+          { id: '1-4', epicId: '1', storyNumber: 4, slug: 'd', status: 'in-progress' },
+          { id: '1-5', epicId: '1', storyNumber: 5, slug: 'e', status: 'review' },
+          { id: '1-6', epicId: '1', storyNumber: 6, slug: 'f', status: 'done' },
+          { id: '1-7', epicId: '1', storyNumber: 7, slug: 'g', status: 'done' },
+          { id: '1-8', epicId: '1', storyNumber: 8, slug: 'h', status: 'done' },
+        ],
+      };
+
+      sprintStatus.set(mockStatus);
+
+      const progress = get(sprintProgress);
+      expect(progress).toEqual({
+        counts: {
+          backlog: 2,
+          ready: 1,
+          inProgress: 1,
+          review: 1,
+          done: 3,
+        },
+        total: 8,
+        percentage: 38, // 3/8 = 37.5, rounded to 38
+      });
+    });
+
+    it('handles empty stories array', () => {
+      const mockStatus: SprintStatus = {
+        generated: '2026-02-23',
+        project: 'test',
+        epics: [],
+        stories: [],
+      };
+
+      sprintStatus.set(mockStatus);
+
+      const progress = get(sprintProgress);
+      expect(progress).toEqual({
+        counts: {
+          backlog: 0,
+          ready: 0,
+          inProgress: 0,
+          review: 0,
+          done: 0,
+        },
+        total: 0,
+        percentage: 0,
+      });
     });
   });
 });

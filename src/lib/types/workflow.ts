@@ -78,3 +78,96 @@ export interface Workflow {
   /** Path to the workflow definition file */
   path: string;
 }
+
+// =====================================================================
+// Workflow Dashboard Types (Story 4-8: Multi-Workflow Visualization)
+// =====================================================================
+
+/**
+ * View mode for the workflow dashboard tab bar.
+ */
+export type WorkflowViewMode = 'phase' | 'epic' | 'sprint' | 'story';
+
+/**
+ * Stats for an epic's progress.
+ */
+export interface EpicProgressStats {
+  /** Total number of stories in the epic */
+  total: number;
+  /** Number of stories with 'done' status */
+  done: number;
+  /** Number of stories with 'in-progress' status */
+  inProgress: number;
+  /** Completion percentage (0-100) */
+  percentage: number;
+}
+
+/**
+ * Progress data for a single epic.
+ */
+export interface EpicProgress {
+  /** Epic ID (e.g., "1", "2.5") */
+  epicId: string;
+  /** Epic title (from epic file frontmatter) */
+  title: string;
+  /** Epic status */
+  status: 'backlog' | 'in-progress' | 'done';
+  /** Progress statistics */
+  stats: EpicProgressStats;
+}
+
+/**
+ * Counts of stories by status for sprint overview.
+ */
+export interface SprintProgressCounts {
+  /** Stories in backlog */
+  backlog: number;
+  /** Stories ready for development */
+  ready: number;
+  /** Stories in progress */
+  inProgress: number;
+  /** Stories in review */
+  review: number;
+  /** Stories completed */
+  done: number;
+}
+
+/**
+ * Aggregated sprint progress metrics.
+ */
+export interface SprintProgress {
+  /** Story counts by status */
+  counts: SprintProgressCounts;
+  /** Total number of stories */
+  total: number;
+  /** Overall completion percentage (0-100) */
+  percentage: number;
+}
+
+/**
+ * A single task item from a story's task list.
+ */
+export interface StoryTask {
+  /** Task text/description */
+  text: string;
+  /** Whether the task is completed */
+  completed: boolean;
+  /** Indentation level (0 for top-level tasks, 1 for subtasks) */
+  level: number;
+}
+
+/**
+ * Progress data for a story's tasks.
+ */
+export interface StoryProgress {
+  /** Story ID */
+  storyId: string;
+  /** List of tasks parsed from the story */
+  tasks: StoryTask[];
+  /** Total number of tasks */
+  total: number;
+  /** Number of completed tasks */
+  completed: number;
+  /** Completion percentage (0-100) */
+  percentage: number;
+}

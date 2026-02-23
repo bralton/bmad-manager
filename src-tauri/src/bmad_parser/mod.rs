@@ -5,6 +5,7 @@ mod artifact_browser;
 mod artifacts;
 pub mod epic_parser;
 mod sprint_status;
+pub mod story_tasks;
 mod types;
 mod workflow_state;
 mod workflows;
@@ -23,6 +24,6 @@ pub use sprint_status::{parse_sprint_status, Epic, EpicStatus, RetroStatus, Spri
 pub use workflows::{parse_workflow_manifest, Workflow};
 // Artifact browser exports for Tauri commands
 pub use artifact_browser::{
-    get_epic_artifact, get_story_artifact, list_artifacts, read_artifact_content, ArtifactCategory,
-    ArtifactGroups, ArtifactInfo,
+    get_epic_artifact, get_story_artifact, list_artifacts, read_artifact_content, ArtifactGroups,
+    ArtifactInfo,
 };
