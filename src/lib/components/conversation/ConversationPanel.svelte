@@ -15,6 +15,8 @@
   let terminating = $state(false);
 
   const isActive = $derived(session.status === 'active');
+  const isPartyMode = $derived(session.partyMode?.enabled ?? false);
+  const partyParticipants = $derived(session.partyMode?.participants ?? []);
 
   const statusColors: Record<string, string> = {
     active: 'bg-green-500',
@@ -68,10 +70,39 @@
         title={statusLabels[session.status]}
       ></span>
 
-      <!-- Agent name -->
-      <h2 class="text-sm font-medium text-gray-100">
-        {session.agent}
-      </h2>
+      <!-- Agent name / Party mode indicator -->
+      {#if isPartyMode}
+        <span class="text-lg" aria-hidden="true">🎉</span>
+        <h2 class="text-sm font-medium text-purple-200">
+          Party Mode
+        </h2>
+        <!-- Participant avatars -->
+        <div class="flex items-center -space-x-1" title={partyParticipants.join(', ')}>
+          {#each partyParticipants.slice(0, 4) as participant, i}
+            <span
+              class="w-6 h-6 rounded-full bg-purple-700 border border-purple-500/50 flex items-center justify-center text-xs font-medium text-purple-100"
+              style="z-index: {4 - i}"
+            >
+              {participant.charAt(0)}
+            </span>
+          {/each}
+          {#if partyParticipants.length > 4}
+            <span
+              class="w-6 h-6 rounded-full bg-purple-900 border border-purple-500/50 flex items-center justify-center text-xs font-medium text-purple-300"
+            >
+              +{partyParticipants.length - 4}
+            </span>
+          {/if}
+        </div>
+        <!-- Participant count -->
+        <span class="text-xs text-purple-300">
+          {partyParticipants.length} agents
+        </span>
+      {:else}
+        <h2 class="text-sm font-medium text-gray-100">
+          {session.agent}
+        </h2>
+      {/if}
 
       <!-- Start time -->
       <span class="text-xs text-gray-500">

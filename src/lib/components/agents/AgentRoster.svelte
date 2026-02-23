@@ -2,12 +2,16 @@
   import { currentProject } from '$lib/stores/project';
   import { addSession, selectSession } from '$lib/stores/sessions';
   import { spawnClaudeSession, generateSessionName } from '$lib/services/process';
+  import { spawnPartySession } from '$lib/services/partyMode';
   import AgentCard from './AgentCard.svelte';
+  import PartyModeCard from './PartyModeCard.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import type { Agent } from '$lib/types/agent';
 
   let project = $derived($currentProject);
   let agents = $derived(project?.agents ?? []);
+  // Party mode requires at least 2 agents
+  let canShowPartyMode = $derived(agents.length >= 2);
 
   // Accordion state - track which agent is expanded (only one at a time)
   let expandedAgentName = $state<string | null>(null);
@@ -76,6 +80,35 @@
       spawning = false;
     }
   }
+
+  async function handleStartParty(selectedAgents: Agent[]) {
+    if (!project || spawning) return;
+
+    spawning = true;
+    const participantNames = selectedAgents.map(a => a.displayName).join(', ');
+    showFeedback(`Starting party session with ${participantNames}...`, 'info');
+
+    try {
+      const session = await spawnPartySession(
+        selectedAgents,
+        project.path,
+        project.name
+      );
+
+      // Add session to store and select it for display
+      addSession(session);
+      selectSession(session.id);
+
+      showFeedback(`Party session started with ${selectedAgents.length} agents`, 'success');
+
+    } catch (error) {
+      console.error('Failed to spawn party session:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showFeedback(`Failed to start party session: ${errorMsg}`, 'error', 5000);
+    } finally {
+      spawning = false;
+    }
+  }
 </script>
 
 <div class="flex flex-col gap-1">
@@ -117,6 +150,17 @@
       description="This project doesn't have any BMAD agents configured. Initialize BMAD to add agents."
     />
   {:else}
+    <!-- Party Mode Card (shown when 2+ agents available) -->
+    {#if canShowPartyMode}
+      <div class="mb-2">
+        <PartyModeCard
+          {agents}
+          onStartParty={handleStartParty}
+          disabled={spawning}
+        />
+      </div>
+    {/if}
+
     {#each agents as agent (agent.path)}
       <AgentCard
         {agent}

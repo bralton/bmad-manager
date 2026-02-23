@@ -84,6 +84,16 @@ describe('ConversationPanel', () => {
     workflow: 'create-prd',
   };
 
+  const mockPartySession: ClaudeSession = {
+    ...mockActiveSession,
+    id: 'party-session-1',
+    agent: 'party',
+    partyMode: {
+      enabled: true,
+      participants: ['Architect', 'Developer', 'Tester']
+    }
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockTerminateSession.mockResolvedValue(undefined);
@@ -372,6 +382,74 @@ describe('ConversationPanel', () => {
 
       // Terminal is mocked, component should render
       expect(document.querySelector('.flex-col')).toBeInTheDocument();
+    });
+  });
+
+  describe('party mode indicator', () => {
+    it('shows Party Mode title for party sessions', () => {
+      render(ConversationPanel, { props: { session: mockPartySession } });
+
+      expect(screen.getByText('Party Mode')).toBeInTheDocument();
+    });
+
+    it('shows party icon for party sessions', () => {
+      render(ConversationPanel, { props: { session: mockPartySession } });
+
+      expect(screen.getByText('🎉')).toBeInTheDocument();
+    });
+
+    it('shows participant count', () => {
+      render(ConversationPanel, { props: { session: mockPartySession } });
+
+      expect(screen.getByText('3 agents')).toBeInTheDocument();
+    });
+
+    it('shows participant avatars with initials', () => {
+      render(ConversationPanel, { props: { session: mockPartySession } });
+
+      // Should show first letter of each participant name
+      expect(screen.getByText('A')).toBeInTheDocument(); // Architect
+      expect(screen.getByText('D')).toBeInTheDocument(); // Developer
+      expect(screen.getByText('T')).toBeInTheDocument(); // Tester
+    });
+
+    it('avatar container has title with all participant names', () => {
+      render(ConversationPanel, { props: { session: mockPartySession } });
+
+      const avatarContainer = document.querySelector('div[title="Architect, Developer, Tester"]');
+      expect(avatarContainer).toBeInTheDocument();
+    });
+
+    it('does not show Party Mode for regular sessions', () => {
+      render(ConversationPanel, { props: { session: mockActiveSession } });
+
+      expect(screen.queryByText('Party Mode')).not.toBeInTheDocument();
+      expect(screen.getByText('architect')).toBeInTheDocument();
+    });
+
+    it('participant avatars have purple styling', () => {
+      render(ConversationPanel, { props: { session: mockPartySession } });
+
+      // Check that avatar elements have purple background
+      const avatars = document.querySelectorAll('.bg-purple-700');
+      expect(avatars.length).toBe(3); // One for each participant
+    });
+
+    it('shows overflow indicator when more than 4 participants', () => {
+      const manyParticipantsSession: ClaudeSession = {
+        ...mockActiveSession,
+        id: 'party-session-2',
+        agent: 'party',
+        partyMode: {
+          enabled: true,
+          participants: ['Architect', 'Developer', 'Tester', 'Designer', 'PM', 'DevOps']
+        }
+      };
+
+      render(ConversationPanel, { props: { session: manyParticipantsSession } });
+
+      // Should show +2 overflow indicator
+      expect(screen.getByText('+2')).toBeInTheDocument();
     });
   });
 });

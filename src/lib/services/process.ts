@@ -7,6 +7,16 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 /**
+ * Party mode metadata for multi-agent sessions.
+ */
+export interface PartyModeInfo {
+  /** Whether this is a party mode session */
+  enabled: boolean;
+  /** Display names of participating agents */
+  participants: string[];
+}
+
+/**
  * Options for spawning a new Claude CLI session.
  */
 export interface SpawnOptions {
@@ -20,6 +30,8 @@ export interface SpawnOptions {
   resume?: boolean;
   /** Claude CLI's session UUID (required for resume, auto-generated for new sessions) */
   claudeSessionId?: string;
+  /** Party mode info for multi-agent sessions */
+  partyMode?: PartyModeInfo;
 }
 
 /**
@@ -45,6 +57,8 @@ export interface ClaudeSession {
   startedAt: string;
   /** Current session status */
   status: SessionStatus;
+  /** Party mode info (if this is a multi-agent session) */
+  partyMode?: PartyModeInfo;
 }
 
 /**
