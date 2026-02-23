@@ -12,7 +12,9 @@ import {
   selectedStoryId,
   storiesByStatus,
   storiesByEpic,
+  epicTitles,
   refreshSprintStatus,
+  refreshEpicTitles,
   resetSprintStatus,
 } from './stories';
 import type { SprintStatus, Story } from '$lib/types/stories';
@@ -21,11 +23,13 @@ import type { SprintStatus, Story } from '$lib/types/stories';
 vi.mock('$lib/services/stories', () => ({
   storyApi: {
     getSprintStatus: vi.fn(),
+    getEpicTitles: vi.fn(),
   },
 }));
 
 import { storyApi } from '$lib/services/stories';
 const mockGetSprintStatus = storyApi.getSprintStatus as ReturnType<typeof vi.fn>;
+const mockGetEpicTitles = storyApi.getEpicTitles as ReturnType<typeof vi.fn>;
 
 describe('stories store', () => {
   beforeEach(() => {
@@ -249,6 +253,73 @@ describe('stories store', () => {
       expect(get(sprintStatusLoading)).toBe(false);
       expect(get(sprintStatusError)).toBeNull();
       expect(get(selectedStoryId)).toBeNull();
+    });
+
+    it('resets epicTitles to empty Map', async () => {
+      // Set some titles first
+      mockGetEpicTitles.mockResolvedValue({ '1': 'Foundation', '2': 'Polish' });
+      await refreshEpicTitles('/test/project');
+      expect(get(epicTitles).size).toBe(2);
+
+      // Reset should clear them
+      resetSprintStatus();
+      expect(get(epicTitles).size).toBe(0);
+    });
+  });
+
+  describe('epicTitles store', () => {
+    it('initializes to empty Map', () => {
+      expect(get(epicTitles)).toEqual(new Map());
+    });
+  });
+
+  describe('refreshEpicTitles', () => {
+    it('sets epicTitles from API response', async () => {
+      mockGetEpicTitles.mockResolvedValue({
+        '1': 'Foundation',
+        '2.5': 'Prep Sprint',
+        '3': 'Stories & Worktrees',
+      });
+
+      await refreshEpicTitles('/test/project');
+
+      const titles = get(epicTitles);
+      expect(titles.get('1')).toBe('Foundation');
+      expect(titles.get('2.5')).toBe('Prep Sprint');
+      expect(titles.get('3')).toBe('Stories & Worktrees');
+    });
+
+    it('handles empty response gracefully', async () => {
+      mockGetEpicTitles.mockResolvedValue({});
+
+      await refreshEpicTitles('/test/project');
+
+      expect(get(epicTitles).size).toBe(0);
+    });
+
+    it('handles API error gracefully without throwing', async () => {
+      mockGetEpicTitles.mockRejectedValue(new Error('Network error'));
+
+      // Should not throw
+      await refreshEpicTitles('/test/project');
+
+      // Titles should remain empty
+      expect(get(epicTitles).size).toBe(0);
+    });
+
+    it('replaces previous titles on refresh', async () => {
+      // First load
+      mockGetEpicTitles.mockResolvedValue({ '1': 'Old Title' });
+      await refreshEpicTitles('/test/project');
+      expect(get(epicTitles).get('1')).toBe('Old Title');
+
+      // Second load with different data
+      mockGetEpicTitles.mockResolvedValue({ '1': 'New Title', '2': 'Another' });
+      await refreshEpicTitles('/test/project');
+
+      const titles = get(epicTitles);
+      expect(titles.get('1')).toBe('New Title');
+      expect(titles.get('2')).toBe('Another');
     });
   });
 });

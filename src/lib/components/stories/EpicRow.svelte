@@ -1,6 +1,7 @@
 <script lang="ts">
   import StoryCard from './StoryCard.svelte';
   import { KANBAN_COLUMNS, type Epic, type Story, type StoryStatus } from '$lib/types/stories';
+  import { epicTitles } from '$lib/stores/stories';
 
   let { epic, stories }: { epic: Epic; stories: Story[] } = $props();
 
@@ -52,8 +53,10 @@
     return result;
   });
 
-  // Format epic title
-  let epicTitle = $derived(`Epic ${epic.id}`);
+  // Get title from store (may be undefined if not loaded yet)
+  let title = $derived($epicTitles.get(epic.id));
+  // Format epic title with optional title suffix
+  let epicTitle = $derived(title ? `Epic ${epic.id}:` : `Epic ${epic.id}`);
 </script>
 
 <div class="bg-gray-800/50 rounded-lg border border-gray-700">
@@ -71,6 +74,9 @@
       &#x25BC;
     </span>
     <span class="font-medium text-sm text-gray-200">{epicTitle}</span>
+    {#if title}
+      <span class="font-medium text-sm text-gray-400">{title}</span>
+    {/if}
     {#if allDone}
       <span class="text-green-500 text-xs ml-1" title="All stories completed">&#x2713;</span>
     {/if}

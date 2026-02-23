@@ -1,12 +1,13 @@
 /**
  * Unit tests for EpicRow component.
- * Tests rendering, collapse/expand, and completion indicator.
+ * Tests rendering, collapse/expand, completion indicator, and epic title display.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EpicRow from './EpicRow.svelte';
 import type { Epic, Story } from '$lib/types/stories';
+import { epicTitles } from '$lib/stores/stories';
 
 // Mock localStorage
 const mockLocalStorage = (() => {
@@ -30,6 +31,8 @@ describe('EpicRow', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
     vi.clearAllMocks();
+    // Reset epicTitles store to empty state
+    epicTitles.set(new Map());
   });
 
   afterEach(() => {
@@ -164,6 +167,64 @@ describe('EpicRow', () => {
 
       const headerButton = screen.getByRole('button', { name: /Epic 3/ });
       expect(headerButton.getAttribute('aria-expanded')).toBe('true');
+    });
+  });
+
+  describe('epic title display', () => {
+    it('displays only epic number when no title is available', () => {
+      const epic = createEpic({ id: '1' });
+      const stories = [createStory()];
+      // epicTitles is empty (no titles loaded)
+      render(EpicRow, { props: { epic, stories } });
+
+      expect(screen.getByText('Epic 1')).toBeInTheDocument();
+      // Should not have colon since no title
+      expect(screen.queryByText('Epic 1:')).not.toBeInTheDocument();
+    });
+
+    it('displays "Epic N: Title" format when title is available', () => {
+      const epic = createEpic({ id: '1' });
+      const stories = [createStory()];
+      // Set epic title in store
+      epicTitles.set(new Map([['1', 'Foundation']]));
+      render(EpicRow, { props: { epic, stories } });
+
+      expect(screen.getByText('Epic 1:')).toBeInTheDocument();
+      expect(screen.getByText('Foundation')).toBeInTheDocument();
+    });
+
+    it('displays decimal epic ID with title correctly', () => {
+      const epic = createEpic({ id: '2.5' });
+      const stories = [createStory({ epicId: '2.5' })];
+      epicTitles.set(new Map([['2.5', 'Prep Sprint']]));
+      render(EpicRow, { props: { epic, stories } });
+
+      expect(screen.getByText('Epic 2.5:')).toBeInTheDocument();
+      expect(screen.getByText('Prep Sprint')).toBeInTheDocument();
+    });
+
+    it('renders title in muted gray color', () => {
+      const epic = createEpic({ id: '3' });
+      const stories = [createStory()];
+      epicTitles.set(new Map([['3', 'Stories & Worktrees']]));
+      render(EpicRow, { props: { epic, stories } });
+
+      const titleElement = screen.getByText('Stories & Worktrees');
+      expect(titleElement).toHaveClass('text-gray-400');
+    });
+
+    it('does not display title span when no title available', () => {
+      const epic = createEpic({ id: '4' });
+      const stories = [createStory()];
+      // No title for epic 4
+      epicTitles.set(new Map([['1', 'Foundation']])); // Only other epics have titles
+      render(EpicRow, { props: { epic, stories } });
+
+      // Should only have the "Epic 4" text (no colon), not "Epic 4:" with a title
+      expect(screen.getByText('Epic 4')).toBeInTheDocument();
+      expect(screen.queryByText('Epic 4:')).not.toBeInTheDocument();
+      // No title text should be present
+      expect(screen.queryByText('Foundation')).not.toBeInTheDocument();
     });
   });
 });

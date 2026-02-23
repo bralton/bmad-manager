@@ -79,6 +79,15 @@ fn read_artifact_file(file_path: String) -> Result<String, String> {
     bmad_parser::read_artifact_content(&file_path)
 }
 
+/// Gets epic titles from a project's epic files.
+/// Parses YAML frontmatter from epic-*.md files (excluding retrospectives).
+/// Returns a map of epic ID to title (e.g., "1" -> "Foundation").
+#[tauri::command]
+fn get_epic_titles(project_path: String) -> std::collections::HashMap<String, String> {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::epic_parser::parse_epic_titles(&path)
+}
+
 // Conflict detection Tauri commands
 
 /// Gets conflict warnings for active stories in a project.
@@ -332,6 +341,7 @@ pub fn run() {
             get_story_artifact,
             get_epic_artifact,
             read_artifact_file,
+            get_epic_titles,
             open_in_ide,
             get_story_conflicts,
             file_watcher::start_file_watcher,

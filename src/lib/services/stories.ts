@@ -18,4 +18,13 @@ export const storyApi = {
    */
   getSprintStatus: (projectPath: string) =>
     invoke<SprintStatus>('get_sprint_status', { projectPath }),
+
+  /**
+   * Gets epic titles from a project's epic files.
+   * Parses YAML frontmatter from epic-*.md files (excluding retrospectives).
+   * @param projectPath - Absolute path to the project directory
+   * @returns Record mapping epic ID to title (e.g., "1" -> "Foundation")
+   */
+  getEpicTitles: (projectPath: string) =>
+    invoke<Record<string, string>>('get_epic_titles', { projectPath }),
 };

@@ -3,6 +3,7 @@
 mod agents;
 mod artifact_browser;
 mod artifacts;
+pub mod epic_parser;
 mod sprint_status;
 mod types;
 mod workflow_state;

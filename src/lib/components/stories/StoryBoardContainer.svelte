@@ -12,6 +12,7 @@
     sprintStatusError,
     selectedStoryId,
     refreshSprintStatus,
+    refreshEpicTitles,
     resetSprintStatus,
   } from '$lib/stores/stories';
   import { validateAndRefreshWorktrees, resetWorktrees, worktreesByStory } from '$lib/stores/worktrees';
@@ -64,6 +65,8 @@
 
     if (projectPath && project?.state === 'fully-initialized') {
       await refreshSprintStatus(projectPath);
+      // Refresh epic titles for display in story board
+      await refreshEpicTitles(projectPath);
       // Initialize previousStatusMap with current statuses to prevent spurious toasts
       // This ensures stories already "done" don't trigger cleanup prompts on initial load
       const currentStatus = get(sprintStatus);

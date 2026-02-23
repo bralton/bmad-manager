@@ -30,6 +30,7 @@ vi.mock('$lib/stores/project', () => ({
 vi.mock('$lib/services/stories', () => ({
   storyApi: {
     getSprintStatus: vi.fn(),
+    getEpicTitles: vi.fn(() => Promise.resolve({})),
   },
 }));
 
@@ -41,12 +42,14 @@ vi.mock('$lib/services/events', () => ({
 // Mock the worktrees service
 vi.mock('$lib/services/worktrees', () => ({
   worktreeApi: {
-    listWorktrees: vi.fn().mockResolvedValue([]),
+    listWorktrees: vi.fn(() => Promise.resolve([])),
     createWorktree: vi.fn(),
     getWorktreeForStory: vi.fn(),
     isWorktreeDirty: vi.fn(),
     getWorktreeBinding: vi.fn(),
-    getAllWorktreeBindings: vi.fn().mockResolvedValue([]),
+    getAllWorktreeBindings: vi.fn(() => Promise.resolve([])),
+    validateWorktreeBindings: vi.fn(() => Promise.resolve([])),
+    getCurrentWorktreeStoryId: vi.fn(() => Promise.resolve(null)),
   },
 }));
 

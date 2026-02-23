@@ -10,6 +10,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
+    "test:quiet": "vitest run --reporter=dot",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "tauri": "tauri"

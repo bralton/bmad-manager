@@ -98,6 +98,26 @@ pub enum MyError {
 }
 ```
 
+### 6. Test Execution - NEVER Pipe to head/tail
+
+**Piping test output to `head` or `tail` orphans worker processes:**
+```bash
+# WRONG - creates orphaned vitest workers that consume CPU forever
+npm run test 2>&1 | head -60   # SIGPIPE kills parent, workers survive
+npm run test 2>&1 | tail -30   # Same problem
+
+# CORRECT - let tests complete naturally
+npm run test                    # Full output
+npm run test:quiet              # Minimal dot output (use this for less noise)
+
+# CORRECT - if you need partial output, redirect first
+npm run test 2>&1 > /tmp/test-output.txt && tail -30 /tmp/test-output.txt
+```
+
+**Why this happens:** Vitest spawns worker processes for parallel testing. When you pipe to `head`/`tail` and close the pipe early, the parent process receives SIGPIPE and exits, but forked workers become orphaned and run indefinitely.
+
+**Incident:** 2026-02-23 - 7 orphaned vitest workers consumed ~290% CPU, locked up laptop.
+
 ---
 
 ## Project Structure
@@ -128,6 +148,8 @@ bmad-manager/
 npm run tauri dev      # Development server
 npm run tauri build    # Production build
 cargo test             # Run Rust tests
+npm run test           # Run frontend tests (full output)
+npm run test:quiet     # Run frontend tests (minimal dot output - PREFERRED)
 npm run check          # TypeScript check
 ```
 
@@ -136,6 +158,7 @@ npm run check          # TypeScript check
 - All stories should have unit tests
 - Run `cargo test` before marking story done
 - Run `npm run check` to verify TypeScript
+- **Use `npm run test:quiet` for minimal output** - NEVER pipe test commands to `head`/`tail`
 
 ---
 

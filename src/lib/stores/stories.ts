@@ -13,6 +13,12 @@ import { storyApi } from '$lib/services/stories';
 export const sprintStatus = writable<SprintStatus | null>(null);
 
 /**
+ * Epic titles map from epic ID to title.
+ * E.g., "1" -> "Foundation", "2.5" -> "Prep Sprint"
+ */
+export const epicTitles = writable<Map<string, string>>(new Map());
+
+/**
  * Whether a sprint status loading operation is in progress.
  */
 export const sprintStatusLoading = writable<boolean>(false);
@@ -117,4 +123,19 @@ export function resetSprintStatus(): void {
   sprintStatusLoading.set(false);
   sprintStatusError.set(null);
   selectedStoryId.set(null);
+  epicTitles.set(new Map());
+}
+
+/**
+ * Refreshes epic titles from a project's epic files.
+ * @param projectPath - Absolute path to the project directory
+ */
+export async function refreshEpicTitles(projectPath: string): Promise<void> {
+  try {
+    const titles = await storyApi.getEpicTitles(projectPath);
+    epicTitles.set(new Map(Object.entries(titles)));
+  } catch (error) {
+    console.error('Failed to load epic titles:', error);
+    // Don't throw - epic titles are optional enhancement
+  }
 }
