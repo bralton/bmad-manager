@@ -4,6 +4,7 @@
   import ProjectPicker from '$lib/components/project/ProjectPicker.svelte';
   import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
   import SessionTabs from '$lib/components/conversation/SessionTabs.svelte';
+  import PinnedSessionsBar from '$lib/components/conversation/PinnedSessionsBar.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
   import SettingsModal from '$lib/components/settings/SettingsModal.svelte';
   import DashboardVisualizerContainer from '$lib/components/dashboard/DashboardVisualizerContainer.svelte';
@@ -365,6 +366,9 @@
   <Sidebar />
 
   <main class="flex-1 flex flex-col min-w-0">
+    <!-- Pinned Sessions Bar - visible across all views (AC#10) -->
+    <PinnedSessionsBar />
+
     {#if currentView === 'dashboards'}
       <!-- Dashboard View (default) - Epic Progress and Sprint Overview -->
       <DashboardVisualizerContainer />
