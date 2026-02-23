@@ -6,6 +6,7 @@
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { selectArtifact } from '$lib/stores/artifacts';
   import { artifactBrowserApi } from '$lib/services/artifacts';
+  import { showToast } from '$lib/stores/ui';
 
   // Subscribe to epicProgress store
   let progress = $derived($epicProgress);
@@ -55,6 +56,7 @@
       }
     } catch (error) {
       console.error('Failed to load epic artifact:', error);
+      showToast('Failed to load epic details', '✗', 3000);
     }
   }
 </script>

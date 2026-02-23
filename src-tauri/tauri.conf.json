@@ -14,9 +14,9 @@
       {
         "label": "main",
         "title": "BMAD Manager",
-        "width": 1200,
+        "width": 1400,
         "height": 800,
-        "minWidth": 800,
+        "minWidth": 1280,
         "minHeight": 600,
         "resizable": true
       }
