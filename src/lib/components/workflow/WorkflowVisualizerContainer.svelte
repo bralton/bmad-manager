@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import WorkflowVisualizer from './WorkflowVisualizer.svelte';
+  import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
     workflowState,
@@ -9,6 +10,7 @@
     refreshWorkflowState,
     resetWorkflowState,
   } from '$lib/stores/workflow';
+  import { openCommandPalette } from '$lib/stores/ui';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
   import type { UnlistenFn } from '@tauri-apps/api/event';
 
@@ -132,8 +134,14 @@
       <WorkflowVisualizer workflowState={workflow} />
     {:else}
       <!-- Fallback: no state yet, not loading, no error -->
-      <div class="h-20 flex items-center justify-center">
-        <p class="text-gray-500 text-sm">Workflow state unavailable</p>
+      <div class="py-6">
+        <EmptyState
+          icon="workflow"
+          title="Workflow state unavailable"
+          description="The project may not have any BMAD artifacts yet. Start a workflow to begin."
+          actionLabel="Open Command Palette"
+          onAction={() => openCommandPalette()}
+        />
       </div>
     {/if}
   </div>

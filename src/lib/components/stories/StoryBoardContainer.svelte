@@ -4,6 +4,7 @@
   import StoryBoard from './StoryBoard.svelte';
   import StoryDetailPanel from './StoryDetailPanel.svelte';
   import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
+  import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
     sprintStatus,
@@ -260,35 +261,17 @@
         onClose={handleCloseDetail}
       />
     {/if}
-  {:else if status && status.stories.length === 0}
-    <!-- Empty state - no stories in sprint status -->
-    <div class="flex-1 flex items-center justify-center">
-      <div class="text-center text-gray-400 max-w-md px-4">
-        <p class="text-lg font-medium mb-2">No stories found</p>
-        <p class="text-sm mb-4">
-          Stories are loaded from sprint-status.yaml<br />
-          in _bmad-output/implementation-artifacts/
-        </p>
-        <p class="text-sm text-gray-500">
-          Make sure your project has BMAD<br />
-          sprint status configured.
-        </p>
-      </div>
-    </div>
   {:else}
-    <!-- Fallback: no state yet, not loading, no error -->
+    <!-- Empty state - no stories in sprint status or no state yet -->
     <div class="flex-1 flex items-center justify-center">
-      <div class="text-center text-gray-400 max-w-md px-4">
-        <p class="text-lg font-medium mb-2">No stories found</p>
-        <p class="text-sm mb-4">
-          Stories are loaded from sprint-status.yaml<br />
-          in _bmad-output/implementation-artifacts/
-        </p>
-        <p class="text-sm text-gray-500">
-          Make sure your project has BMAD<br />
-          sprint status configured.
-        </p>
-      </div>
+      <EmptyState
+        icon="clipboard"
+        title="No stories found"
+        description="Stories are loaded from sprint-status.yaml in _bmad-output/implementation-artifacts/"
+        secondaryDescription="Make sure your project has BMAD sprint status configured."
+        actionLabel="Refresh"
+        onAction={handleRetry}
+      />
     </div>
   {/if}
 </div>

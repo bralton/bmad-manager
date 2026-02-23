@@ -3,6 +3,7 @@
   import { addSession, selectSession } from '$lib/stores/sessions';
   import { spawnClaudeSession, generateSessionName } from '$lib/services/process';
   import AgentCard from './AgentCard.svelte';
+  import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import type { Agent } from '$lib/types/agent';
 
   let project = $derived($currentProject);
@@ -104,9 +105,17 @@
   {/if}
 
   {#if !project}
-    <p class="text-sm text-gray-500 px-3 py-4">Open a project to see available agents</p>
+    <EmptyState
+      icon="person"
+      title="No agents found"
+      description="Open a BMAD-initialized project to see available agents."
+    />
   {:else if agents.length === 0}
-    <p class="text-sm text-gray-500 px-3 py-4">No agents found in this project</p>
+    <EmptyState
+      icon="person"
+      title="No agents found"
+      description="This project doesn't have any BMAD agents configured. Initialize BMAD to add agents."
+    />
   {:else}
     {#each agents as agent (agent.path)}
       <AgentCard

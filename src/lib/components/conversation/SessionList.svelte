@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SessionRecord } from '$lib/services/process';
+  import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
   type FilterType = 'all' | 'active' | 'completed' | 'this-week';
 
@@ -169,32 +170,29 @@
   <!-- Session list -->
   <div class="flex-1 overflow-y-auto">
     {#if filteredSessions.length === 0}
-      <div class="p-4 text-center text-gray-500 text-sm">
+      <div class="py-8">
         {#if searchQuery}
-          <div class="mb-2">
-            No sessions match "<span class="text-gray-400">{searchQuery}</span>"
-          </div>
-          <p class="text-xs text-gray-600 mb-3">
-            Try different keywords or clear the search to see all sessions.
-          </p>
-          <button
-            onclick={clearSearch}
-            class="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 transition-colors"
-          >
-            Clear Search
-          </button>
+          <EmptyState
+            icon="search"
+            title='No sessions match "{searchQuery}"'
+            description="Try different keywords or clear the search to see all sessions."
+            actionLabel="Clear Search"
+            onAction={clearSearch}
+          />
         {:else if activeFilter !== 'all'}
-          <div class="mb-2">
-            No {activeFilter === 'this-week' ? 'sessions from this week' : activeFilter + ' sessions'}
-          </div>
-          <button
-            onclick={() => (activeFilter = 'all')}
-            class="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 transition-colors"
-          >
-            Show All
-          </button>
+          <EmptyState
+            icon="chat"
+            title="No {activeFilter === 'this-week' ? 'sessions from this week' : activeFilter + ' sessions'}"
+            description="Change the filter to see other sessions."
+            actionLabel="Show All"
+            onAction={() => (activeFilter = 'all')}
+          />
         {:else}
-          No session history yet
+          <EmptyState
+            icon="chat"
+            title="No sessions yet"
+            description="Start a conversation with an agent to begin."
+          />
         {/if}
       </div>
     {:else}

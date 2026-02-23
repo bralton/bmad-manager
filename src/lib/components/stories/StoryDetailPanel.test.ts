@@ -119,7 +119,9 @@ describe('StoryDetailPanel', () => {
       render(StoryDetailPanel, { props: { story, epic: createEpic(), onClose: onCloseMock } });
 
       expect(screen.getByText('Worktree')).toBeInTheDocument();
-      expect(screen.getByText('No worktree exists for this story.')).toBeInTheDocument();
+      expect(screen.getByText('No worktree')).toBeInTheDocument();
+      // EmptyState component now handles the description
+      expect(screen.getByText(/Worktrees let you work on this story in an isolated branch/)).toBeInTheDocument();
       expect(screen.getByText('Create Worktree')).toBeInTheDocument();
     });
 

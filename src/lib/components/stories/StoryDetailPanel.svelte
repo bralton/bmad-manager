@@ -10,6 +10,7 @@
   import { openWorktreeInNewWindow } from '$lib/services/windows';
   import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
   import ConflictWarningBanner from '$lib/components/conflicts/ConflictWarningBanner.svelte';
+  import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
   let {
     story,
@@ -334,7 +335,11 @@
         {:else}
           <!-- No worktree -->
           <div class="text-sm">
-            <p class="text-gray-400 mb-3">No worktree exists for this story.</p>
+            <EmptyState
+              icon="branch"
+              title="No worktree"
+              description="Worktrees let you work on this story in an isolated branch without affecting your main working directory."
+            />
             <button
               onclick={handleCreateWorktree}
               class="w-full px-3 py-2 text-sm rounded bg-indigo-600 text-white

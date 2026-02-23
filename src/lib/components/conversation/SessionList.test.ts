@@ -129,7 +129,7 @@ describe('SessionList', () => {
     it('shows no history message when no sessions', () => {
       render(SessionList, { props: { sessions: [] } });
 
-      expect(screen.getByText('No session history yet')).toBeInTheDocument();
+      expect(screen.getByText('No sessions yet')).toBeInTheDocument();
     });
 
     it('shows search query in empty results message', async () => {
@@ -138,8 +138,8 @@ describe('SessionList', () => {
       const input = screen.getByPlaceholderText('Search sessions...');
       await fireEvent.input(input, { target: { value: 'foobar' } });
 
-      expect(screen.getByText(/No sessions match/)).toBeInTheDocument();
-      expect(screen.getByText('foobar')).toBeInTheDocument();
+      // The query is now embedded in the title text
+      expect(screen.getByText(/No sessions match "foobar"/)).toBeInTheDocument();
     });
 
     it('shows Clear Search button in empty search results', async () => {
@@ -355,8 +355,8 @@ describe('SessionList', () => {
       expect(screen.getByText('tester')).toBeInTheDocument();
     });
 
-    it('shows empty state message when filter has no matches', async () => {
-      // Only one active session
+    it('shows empty state message when Completed filter has no matches', async () => {
+      // Only one interrupted session (no completed sessions)
       const sessions: SessionRecord[] = [
         {
           ...mockSessions[0],
@@ -370,6 +370,43 @@ describe('SessionList', () => {
       await fireEvent.click(completedChip);
 
       expect(screen.getByText(/No completed sessions/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Show All' })).toBeInTheDocument();
+    });
+
+    it('shows empty state message when Active filter has no matches', async () => {
+      // Only completed sessions (no active sessions)
+      const sessions: SessionRecord[] = [
+        {
+          ...mockSessions[0],
+          status: 'completed',
+        },
+      ];
+
+      render(SessionList, { props: { sessions } });
+
+      const activeChip = screen.getByRole('button', { name: 'Active' });
+      await fireEvent.click(activeChip);
+
+      expect(screen.getByText(/No active sessions/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Show All' })).toBeInTheDocument();
+    });
+
+    it('shows empty state message when This Week filter has no matches', async () => {
+      // Session from more than a week ago
+      const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(); // 10 days ago
+      const sessions: SessionRecord[] = [
+        {
+          ...mockSessions[0],
+          lastActive: oldDate,
+        },
+      ];
+
+      render(SessionList, { props: { sessions } });
+
+      const thisWeekChip = screen.getByRole('button', { name: 'This Week' });
+      await fireEvent.click(thisWeekChip);
+
+      expect(screen.getByText(/No sessions from this week/)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Show All' })).toBeInTheDocument();
     });
 

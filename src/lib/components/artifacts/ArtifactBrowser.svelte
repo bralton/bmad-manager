@@ -13,6 +13,7 @@
     selectArtifact,
   } from '$lib/stores/artifacts';
   import ArtifactList from './ArtifactList.svelte';
+  import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
   let groups = $derived($artifactGroups);
   let loading = $derived($artifactsLoading);
@@ -43,7 +44,7 @@
 
   <!-- Content -->
   <div class="flex-1 overflow-y-auto p-3">
-    {#if loading}
+    {#if loading && !groups}
       <div class="flex items-center justify-center h-32">
         <div class="w-6 h-6 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin"></div>
       </div>
@@ -59,20 +60,13 @@
       </div>
     {:else if !groups || totalCount === 0}
       <!-- Empty state -->
-      <div class="flex flex-col items-center justify-center h-64 text-center px-4">
-        <svg class="w-12 h-12 text-gray-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <h3 class="text-lg font-medium text-gray-400 mb-2">No artifacts found</h3>
-        <p class="text-sm text-gray-600 max-w-xs">
-          BMAD artifacts will appear here once you create them using the workflow system.
-        </p>
-        <p class="text-xs text-gray-700 mt-3">
-          Expected locations:<br />
-          <code class="text-gray-500">_bmad-output/planning-artifacts/</code><br />
-          <code class="text-gray-500">_bmad-output/implementation-artifacts/</code>
-        </p>
+      <div class="h-64 flex items-center justify-center">
+        <EmptyState
+          icon="document"
+          title="No artifacts found"
+          description="BMAD artifacts will appear here once you create them using the workflow system."
+          secondaryDescription="Expected locations: _bmad-output/planning-artifacts/ and _bmad-output/implementation-artifacts/"
+        />
       </div>
     {:else}
       <!-- Category lists -->
