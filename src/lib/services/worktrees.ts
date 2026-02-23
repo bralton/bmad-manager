@@ -8,6 +8,7 @@ import type {
   Worktree,
   WorktreeBinding,
   CreateWorktreeOptions,
+  MergeResult,
 } from '$lib/types/worktree';
 
 /**
@@ -166,3 +167,80 @@ export const worktreeApi = {
     force: boolean
   ) => invoke<void>('cleanup_worktree', { repoPath, worktreePath, deleteBranch, force }),
 };
+
+/**
+ * API for merge operations.
+ */
+export const mergeApi = {
+  /**
+   * Gets the current branch name for the main repository.
+   *
+   * @param repoPath - Absolute path to the main repository
+   * @returns The current branch name
+   * @throws WorktreeError if repo is in detached HEAD state
+   */
+  getMainRepoBranch: (repoPath: string) =>
+    invoke<string>('get_main_repo_branch', { repoPath }),
+
+  /**
+   * Checks if merging a worktree branch would result in conflicts.
+   *
+   * @param repoPath - Absolute path to the main repository
+   * @param worktreeBranch - The branch to merge from
+   * @returns Array of conflicting file paths (empty if no conflicts)
+   */
+  checkMergeConflicts: (repoPath: string, worktreeBranch: string) =>
+    invoke<string[]>('check_worktree_merge_conflicts', { repoPath, worktreeBranch }),
+
+  /**
+   * Merges a worktree branch into the current branch of the main repository.
+   *
+   * @param repoPath - Absolute path to the main repository
+   * @param worktreeBranch - The branch to merge from
+   * @param storyId - Optional story ID to include in commit message
+   * @returns The merge result
+   */
+  mergeWorktreeBranch: (repoPath: string, worktreeBranch: string, storyId?: string) =>
+    invoke<MergeResult>('merge_worktree_branch', { repoPath, worktreeBranch, storyId }),
+
+  /**
+   * Cleans up after a successful merge.
+   *
+   * @param repoPath - Absolute path to the main repository
+   * @param worktreePath - Absolute path to the worktree to remove
+   * @param branchName - Name of the branch to delete
+   */
+  cleanupAfterMerge: (repoPath: string, worktreePath: string, branchName: string) =>
+    invoke<void>('cleanup_after_merge', { repoPath, worktreePath, branchName }),
+};
+
+/**
+ * Parses a merge error into a user-friendly message.
+ *
+ * @param error - The error from a merge operation
+ * @returns A user-friendly error message
+ */
+export function parseMergeError(error: unknown): string {
+  if (typeof error === 'string') {
+    if (error.includes('uncommitted changes')) {
+      return 'Target repository has uncommitted changes. Please commit or stash them first.';
+    }
+    if (error.includes('detached HEAD')) {
+      return 'Target repository is in detached HEAD state. Please checkout a branch first.';
+    }
+    if (error.includes('Merge failed')) {
+      return error;
+    }
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+
+  return 'Merge operation failed';
+}

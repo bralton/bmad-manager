@@ -10,4 +10,5 @@
 
 pub mod commands;
 mod git;
+pub mod merge;
 pub mod types;

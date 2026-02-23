@@ -9,6 +9,7 @@
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
   import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
+  import MergeDialog from './MergeDialog.svelte';
   import ConflictWarningBanner from '$lib/components/conflicts/ConflictWarningBanner.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
@@ -36,8 +37,9 @@
   let conflictSummary = $derived($conflictSummaries.get(displayId));
   let hasConflicts = $derived(conflictSummary != null && conflictSummary.conflictCount > 0);
 
-  // Cleanup dialog state
+  // Dialog states
   let showCleanupDialog = $state(false);
+  let showMergeDialog = $state(false);
 
   // Highlight cleanup button when story is done (AC #6)
   let isDone = $derived(story.status === 'done');
@@ -188,6 +190,14 @@
     }
   }
 
+  function handleMergeToProject() {
+    showMergeDialog = true;
+  }
+
+  function handleCloseMergeDialog() {
+    showMergeDialog = false;
+  }
+
   function handleCleanUpWorktree() {
     showCleanupDialog = true;
   }
@@ -313,17 +323,24 @@
                 {worktree.branch}
               </div>
             </div>
-            <div class="flex gap-2 mt-3">
+            <div class="flex flex-col gap-2 mt-3">
               <button
                 onclick={handleOpenInNewWindow}
-                class="flex-1 px-3 py-2 text-sm rounded bg-indigo-600 text-white
+                class="w-full px-3 py-2 text-sm rounded bg-indigo-600 text-white
                   hover:bg-indigo-500 transition-colors"
               >
                 Open in New Window
               </button>
               <button
+                onclick={handleMergeToProject}
+                class="w-full px-3 py-2 text-sm rounded bg-emerald-600 text-white
+                  hover:bg-emerald-500 transition-colors"
+              >
+                Merge to Project
+              </button>
+              <button
                 onclick={handleCleanUpWorktree}
-                class="flex-1 px-3 py-2 text-sm rounded transition-colors
+                class="w-full px-3 py-2 text-sm rounded transition-colors
                   {isDone
                     ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-600/50 hover:bg-yellow-600/30'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'}"
@@ -356,6 +373,15 @@
     </div>
   </div>
 </div>
+
+<!-- Merge dialog -->
+{#if showMergeDialog && worktree}
+  <MergeDialog
+    {story}
+    {worktree}
+    onClose={handleCloseMergeDialog}
+  />
+{/if}
 
 <!-- Cleanup dialog -->
 {#if showCleanupDialog && worktree}

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use super::types::{CreateWorktreeOptions, Worktree, WorktreeError};
 use super::git;
+use super::merge::{self, MergeResult};
 use crate::session_registry::{self, WorktreeBinding};
 
 /// Creates a new worktree for a story.
@@ -264,6 +265,70 @@ pub async fn get_dirty_files(worktree_path: String) -> Result<Vec<String>, Workt
     tokio::task::spawn_blocking(move || git::get_dirty_files(&wt))
         .await
         .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))?
+}
+
+// --- Merge commands ---
+
+/// Gets the current branch name for the main repository.
+///
+/// Returns an error if the repository is in detached HEAD state.
+#[tauri::command]
+pub async fn get_main_repo_branch(repo_path: String) -> Result<String, WorktreeError> {
+    let repo = PathBuf::from(&repo_path);
+
+    tokio::task::spawn_blocking(move || merge::get_current_branch_name(&repo))
+        .await
+        .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))?
+}
+
+/// Checks if merging a worktree branch would result in conflicts.
+///
+/// Performs a dry-run merge and returns a list of conflicting files.
+/// Returns an empty list if the merge would succeed cleanly.
+#[tauri::command]
+pub async fn check_worktree_merge_conflicts(
+    repo_path: String,
+    worktree_branch: String,
+) -> Result<Vec<String>, WorktreeError> {
+    let repo = PathBuf::from(&repo_path);
+
+    tokio::task::spawn_blocking(move || merge::check_merge_conflicts(&repo, &worktree_branch))
+        .await
+        .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))?
+}
+
+/// Merges a worktree branch into the current branch of the main repository.
+///
+/// Uses `--no-ff` to always create a merge commit. The commit message
+/// includes the story ID if provided.
+#[tauri::command]
+pub async fn merge_worktree_branch(
+    repo_path: String,
+    worktree_branch: String,
+    story_id: Option<String>,
+) -> Result<MergeResult, WorktreeError> {
+    let repo = PathBuf::from(&repo_path);
+
+    tokio::task::spawn_blocking(move || {
+        merge::merge_branch(&repo, &worktree_branch, story_id.as_deref())
+    })
+    .await
+    .map_err(|e| WorktreeError::GitError(format!("Task join error: {}", e)))?
+}
+
+/// Cleans up after a successful merge by removing the worktree and deleting the branch.
+///
+/// This is a convenience command that combines cleanup_worktree functionality
+/// with sensible defaults for post-merge cleanup (delete branch, don't force).
+#[tauri::command]
+pub async fn cleanup_after_merge(
+    repo_path: String,
+    worktree_path: String,
+    _branch_name: String,
+) -> Result<(), WorktreeError> {
+    // Remove the worktree and delete the branch (delete_branch=true handles both)
+    // Not forcing since we just merged successfully - worktree should be clean
+    cleanup_worktree(repo_path, worktree_path, true, false).await
 }
 
 /// Computes the branch name for a worktree.

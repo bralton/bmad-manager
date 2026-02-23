@@ -151,6 +151,60 @@ async fn open_in_ide(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Opens a terminal at the specified directory path.
+///
+/// Uses platform-specific commands to open the system terminal.
+#[tauri::command]
+async fn open_in_terminal(dir_path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Terminal", &dir_path])
+            .spawn()
+            .map_err(|e| format!("Failed to open Terminal: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "cmd", "/K", &format!("cd /d \"{}\"", dir_path)])
+            .spawn()
+            .map_err(|e| format!("Failed to open Command Prompt: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try common terminal emulators in order of preference
+        let terminals = ["gnome-terminal", "konsole", "xterm"];
+        let mut opened = false;
+
+        for terminal in terminals {
+            let result = match terminal {
+                "gnome-terminal" => std::process::Command::new(terminal)
+                    .args(["--working-directory", &dir_path])
+                    .spawn(),
+                "konsole" => std::process::Command::new(terminal)
+                    .args(["--workdir", &dir_path])
+                    .spawn(),
+                _ => std::process::Command::new(terminal)
+                    .current_dir(&dir_path)
+                    .spawn(),
+            };
+
+            if result.is_ok() {
+                opened = true;
+                break;
+            }
+        }
+
+        if !opened {
+            return Err("No supported terminal emulator found".to_string());
+        }
+    }
+
+    Ok(())
+}
+
 use tauri::Emitter;
 
 // Settings Tauri commands
@@ -352,6 +406,7 @@ pub fn run() {
             get_epic_titles,
             get_story_tasks,
             open_in_ide,
+            open_in_terminal,
             get_story_conflicts,
             file_watcher::start_file_watcher,
             file_watcher::stop_file_watcher,
@@ -365,6 +420,10 @@ pub fn run() {
             worktree::commands::get_current_worktree_story_id,
             worktree::commands::cleanup_worktree,
             worktree::commands::get_dirty_files,
+            worktree::commands::get_main_repo_branch,
+            worktree::commands::check_worktree_merge_conflicts,
+            worktree::commands::merge_worktree_branch,
+            worktree::commands::cleanup_after_merge,
             open_project_window,
         ])
         .on_window_event(|window, event| {

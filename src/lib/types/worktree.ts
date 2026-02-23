@@ -86,3 +86,18 @@ export interface CleanupOptions {
   /** Whether to force removal even if worktree has uncommitted changes */
   force: boolean;
 }
+
+/**
+ * Result of a merge operation.
+ * Maps to Rust MergeResult struct.
+ */
+export interface MergeResult {
+  /** Whether the merge was successful */
+  success: boolean;
+  /** Human-readable message about the merge result */
+  message: string;
+  /** List of conflicting file paths (empty if no conflicts) */
+  conflicts: string[];
+  /** The merge commit hash (short form) if successful */
+  mergeCommit: string | null;
+}
