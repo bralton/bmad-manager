@@ -8,13 +8,13 @@ import { writable } from 'svelte/store';
 /**
  * Available main views in the application.
  */
-export type MainView = 'workflows' | 'stories' | 'artifacts';
+export type MainView = 'dashboards' | 'workflows' | 'stories' | 'artifacts';
 
 /**
  * The currently active main view.
  * Determines what content is shown in the main panel.
  */
-export const activeView = writable<MainView>('workflows');
+export const activeView = writable<MainView>('dashboards');
 
 /**
  * Sets the active main view.

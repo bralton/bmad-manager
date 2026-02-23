@@ -153,22 +153,29 @@ export function isInputElement(element: Element): boolean {
 export const defaultShortcuts: ShortcutDefinition[] = [
   // Navigation
   {
-    id: 'view-workflows',
+    id: 'view-dashboards',
     key: 'Cmd+1',
+    description: 'Switch to Dashboards view',
+    category: 'navigation',
+    global: true,
+  },
+  {
+    id: 'view-workflows',
+    key: 'Cmd+2',
     description: 'Switch to Workflows view',
     category: 'navigation',
     global: true,
   },
   {
     id: 'view-stories',
-    key: 'Cmd+2',
+    key: 'Cmd+3',
     description: 'Switch to Stories view',
     category: 'navigation',
     global: true,
   },
   {
     id: 'view-artifacts',
-    key: 'Cmd+3',
+    key: 'Cmd+4',
     description: 'Switch to Artifacts view',
     category: 'navigation',
     global: true,

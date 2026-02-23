@@ -14,10 +14,12 @@ import {
   resetWorkflowState,
   workflowViewMode,
   setWorkflowViewMode,
+  dashboardViewMode,
+  setDashboardViewMode,
   epicProgress,
   sprintProgress,
 } from './workflow';
-import type { WorkflowState, WorkflowViewMode } from '$lib/types/workflow';
+import type { WorkflowState, WorkflowViewMode, DashboardViewMode } from '$lib/types/workflow';
 import { sprintStatus, epicTitles } from '$lib/stores/stories';
 import type { SprintStatus } from '$lib/types/stories';
 
@@ -211,13 +213,13 @@ describe('workflow store', () => {
   });
 
   // =====================================================================
-  // Workflow Dashboard Stores Tests (Story 4-8)
+  // Workflow View Mode Store Tests (Story 5-1: Tab Restructure)
+  // After restructure, only 'phase' view remains in Workflows tab.
   // =====================================================================
 
   describe('workflowViewMode', () => {
     beforeEach(() => {
-      localStorageMock.clear();
-      // Reset to default 'phase' since localStorage is cleared
+      // Reset to default 'phase'
       workflowViewMode.set('phase');
     });
 
@@ -226,24 +228,8 @@ describe('workflow store', () => {
     });
 
     it('setWorkflowViewMode updates the store', () => {
-      setWorkflowViewMode('epic');
-      expect(get(workflowViewMode)).toBe('epic');
-    });
-
-    it('persists view mode to localStorage', () => {
-      setWorkflowViewMode('sprint');
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'workflow-dashboard-view-mode',
-        'sprint'
-      );
-    });
-
-    it('accepts all valid view modes', () => {
-      const modes: WorkflowViewMode[] = ['phase', 'epic', 'sprint', 'story'];
-      for (const mode of modes) {
-        setWorkflowViewMode(mode);
-        expect(get(workflowViewMode)).toBe(mode);
-      }
+      setWorkflowViewMode('phase');
+      expect(get(workflowViewMode)).toBe('phase');
     });
   });
 
@@ -413,6 +399,43 @@ describe('workflow store', () => {
         total: 0,
         percentage: 0,
       });
+    });
+  });
+
+  // =====================================================================
+  // Dashboard View Mode Store Tests (Story 5-1)
+  // =====================================================================
+
+  describe('dashboardViewMode', () => {
+    beforeEach(() => {
+      localStorageMock.clear();
+      // Reset to default 'epic' since localStorage is cleared
+      dashboardViewMode.set('epic');
+    });
+
+    it('initializes to epic by default', () => {
+      expect(get(dashboardViewMode)).toBe('epic');
+    });
+
+    it('setDashboardViewMode updates the store', () => {
+      setDashboardViewMode('sprint');
+      expect(get(dashboardViewMode)).toBe('sprint');
+    });
+
+    it('persists view mode to localStorage', () => {
+      setDashboardViewMode('sprint');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'dashboard-view-mode',
+        'sprint'
+      );
+    });
+
+    it('accepts all valid view modes', () => {
+      const modes: DashboardViewMode[] = ['epic', 'sprint'];
+      for (const mode of modes) {
+        setDashboardViewMode(mode);
+        expect(get(dashboardViewMode)).toBe(mode);
+      }
     });
   });
 });

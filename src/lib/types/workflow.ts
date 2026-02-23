@@ -84,9 +84,17 @@ export interface Workflow {
 // =====================================================================
 
 /**
- * View mode for the workflow dashboard tab bar.
+ * View mode for the workflow tab.
+ * After Story 5-1 Tab Restructure, only 'phase' remains (Epic/Sprint moved to Dashboards).
+ * Future stories may add 'epic-workflow' and 'story-workflow'.
  */
-export type WorkflowViewMode = 'phase' | 'epic' | 'sprint' | 'story';
+export type WorkflowViewMode = 'phase';
+
+/**
+ * View mode for the dashboard tab (Story 5-1: Tab Restructure).
+ * Shows metric views separate from workflow visualizations.
+ */
+export type DashboardViewMode = 'epic' | 'sprint';
 
 /**
  * Stats for an epic's progress.

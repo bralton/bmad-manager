@@ -1,10 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import WorkflowVisualizer from './WorkflowVisualizer.svelte';
-  import WorkflowViewTabs from './WorkflowViewTabs.svelte';
-  import EpicProgressView from './EpicProgressView.svelte';
-  import SprintProgressView from './SprintProgressView.svelte';
-  import StoryTasksView from './StoryTasksView.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
@@ -13,7 +9,6 @@
     workflowError,
     refreshWorkflowState,
     resetWorkflowState,
-    workflowViewMode,
   } from '$lib/stores/workflow';
   import { openCommandPalette } from '$lib/stores/ui';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
@@ -24,7 +19,6 @@
   let workflow = $derived($workflowState);
   let loading = $derived($workflowLoading);
   let error = $derived($workflowError);
-  let viewMode = $derived($workflowViewMode);
 
   // Track the last project path to detect changes
   let lastProjectPath: string | null = null;
@@ -114,19 +108,16 @@
 
 {#if project?.state === 'fully-initialized'}
   <div class="border-b border-gray-800 bg-gray-900/50">
-    <!-- Workflow view tabs -->
-    <WorkflowViewTabs />
-
-    {#if loading && !workflow && viewMode === 'phase'}
-      <!-- Initial loading state (only for phase view) -->
+    {#if loading && !workflow}
+      <!-- Initial loading state -->
       <div class="h-20 flex items-center justify-center">
         <div class="flex items-center gap-2 text-gray-400">
           <div class="w-4 h-4 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin"></div>
           <span class="text-sm">Loading workflow state...</span>
         </div>
       </div>
-    {:else if error && !workflow && viewMode === 'phase'}
-      <!-- Error state (only for phase view) -->
+    {:else if error && !workflow}
+      <!-- Error state -->
       <div class="h-20 flex items-center justify-center">
         <div class="flex flex-col items-center gap-2">
           <p class="text-red-400 text-sm">{error}</p>
@@ -138,30 +129,19 @@
           </button>
         </div>
       </div>
-    {:else if viewMode === 'phase'}
-      <!-- BMAD Phase view (existing visualizer) -->
-      {#if workflow}
-        <WorkflowVisualizer workflowState={workflow} />
-      {:else}
-        <div class="py-6">
-          <EmptyState
-            icon="workflow"
-            title="Workflow state unavailable"
-            description="The project may not have any BMAD artifacts yet. Start a workflow to begin."
-            actionLabel="Open Command Palette"
-            onAction={() => openCommandPalette()}
-          />
-        </div>
-      {/if}
-    {:else if viewMode === 'epic'}
-      <!-- Epic Progress view -->
-      <EpicProgressView />
-    {:else if viewMode === 'sprint'}
-      <!-- Sprint Overview view -->
-      <SprintProgressView />
-    {:else if viewMode === 'story'}
-      <!-- Story Tasks view -->
-      <StoryTasksView />
+    {:else if workflow}
+      <!-- BMAD Phase view - the only workflow view after Story 5-1 Tab Restructure -->
+      <WorkflowVisualizer workflowState={workflow} />
+    {:else}
+      <div class="py-6">
+        <EmptyState
+          icon="workflow"
+          title="Workflow state unavailable"
+          description="The project may not have any BMAD artifacts yet. Start a workflow to begin."
+          actionLabel="Open Command Palette"
+          onAction={() => openCommandPalette()}
+        />
+      </div>
     {/if}
   </div>
 {/if}

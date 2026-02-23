@@ -1,35 +1,33 @@
 <script lang="ts">
-  import type { WorkflowViewMode } from '$lib/types/workflow';
-  import { workflowViewMode, setWorkflowViewMode } from '$lib/stores/workflow';
+  import type { DashboardViewMode } from '$lib/types/workflow';
+  import { dashboardViewMode, setDashboardViewMode } from '$lib/stores/workflow';
 
   interface Props {
     /** Current view mode */
-    currentMode?: WorkflowViewMode;
+    currentMode?: DashboardViewMode;
     /** Callback when mode changes */
-    onModeChange?: (mode: WorkflowViewMode) => void;
+    onModeChange?: (mode: DashboardViewMode) => void;
   }
 
   let { currentMode, onModeChange }: Props = $props();
 
   // Use store value if not provided via props
-  let mode = $derived(currentMode ?? $workflowViewMode);
+  let mode = $derived(currentMode ?? $dashboardViewMode);
 
-  const tabs: { id: WorkflowViewMode; label: string }[] = [
-    { id: 'phase', label: 'BMAD Phase' },
+  const tabs: { id: DashboardViewMode; label: string }[] = [
     { id: 'epic', label: 'Epic Progress' },
-    { id: 'sprint', label: 'Sprint' },
-    { id: 'story', label: 'Story Tasks' },
+    { id: 'sprint', label: 'Sprint Overview' },
   ];
 
-  function handleTabClick(tabId: WorkflowViewMode) {
+  function handleTabClick(tabId: DashboardViewMode) {
     if (onModeChange) {
       onModeChange(tabId);
     } else {
-      setWorkflowViewMode(tabId);
+      setDashboardViewMode(tabId);
     }
   }
 
-  function getTabClasses(tabId: WorkflowViewMode): string {
+  function getTabClasses(tabId: DashboardViewMode): string {
     const isActive = mode === tabId;
 
     if (isActive) {
@@ -39,7 +37,7 @@
   }
 </script>
 
-<div class="flex border-b border-gray-700" role="tablist" aria-label="Workflow views">
+<div class="flex border-b border-gray-700" role="tablist" aria-label="Dashboard views">
   {#each tabs as tab}
     <button
       role="tab"

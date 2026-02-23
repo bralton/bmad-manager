@@ -17,6 +17,9 @@ import {
   lastExecutedCommand,
   setLastExecutedCommand,
   clearLastExecutedCommand,
+  activeView,
+  setActiveView,
+  type MainView,
 } from './ui';
 
 describe('ui store', () => {
@@ -182,6 +185,49 @@ describe('ui store', () => {
       setLastExecutedCommand('/first-command');
       setLastExecutedCommand('/second-command');
       expect(get(lastExecutedCommand)).toBe('/second-command');
+    });
+  });
+
+  describe('activeView', () => {
+    beforeEach(() => {
+      // Reset to default
+      activeView.set('dashboards');
+    });
+
+    // P0: Test default value is 'dashboards' (AC #7)
+    it('initializes to dashboards by default', () => {
+      expect(get(activeView)).toBe('dashboards');
+    });
+
+    // P0: Test MainView includes 'dashboards' (AC #1)
+    it('supports dashboards as a valid MainView', () => {
+      const views: MainView[] = ['dashboards', 'workflows', 'stories', 'artifacts'];
+      views.forEach((view) => {
+        setActiveView(view);
+        expect(get(activeView)).toBe(view);
+      });
+    });
+
+    // P0: Test setActiveView with dashboards
+    it('setActiveView sets dashboards view', () => {
+      setActiveView('workflows');
+      setActiveView('dashboards');
+      expect(get(activeView)).toBe('dashboards');
+    });
+
+    // P0: Test setActiveView with all views
+    it('setActiveView works with all view types', () => {
+      setActiveView('workflows');
+      expect(get(activeView)).toBe('workflows');
+
+      setActiveView('stories');
+      expect(get(activeView)).toBe('stories');
+
+      setActiveView('artifacts');
+      expect(get(activeView)).toBe('artifacts');
+
+      setActiveView('dashboards');
+      expect(get(activeView)).toBe('dashboards');
     });
   });
 });

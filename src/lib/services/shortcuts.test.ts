@@ -234,14 +234,23 @@ describe('shortcuts service', () => {
     });
 
     it('includes view navigation shortcuts', () => {
+      const dashboards = defaultShortcuts.find((s) => s.id === 'view-dashboards');
       const workflows = defaultShortcuts.find((s) => s.id === 'view-workflows');
       const stories = defaultShortcuts.find((s) => s.id === 'view-stories');
       const artifacts = defaultShortcuts.find((s) => s.id === 'view-artifacts');
 
+      expect(dashboards).toBeDefined();
       expect(workflows).toBeDefined();
       expect(stories).toBeDefined();
       expect(artifacts).toBeDefined();
-      expect(workflows?.category).toBe('navigation');
+
+      // Verify key mappings after Story 5-1 Tab Restructure
+      expect(dashboards?.key).toBe('Cmd+1');
+      expect(workflows?.key).toBe('Cmd+2');
+      expect(stories?.key).toBe('Cmd+3');
+      expect(artifacts?.key).toBe('Cmd+4');
+
+      expect(dashboards?.category).toBe('navigation');
     });
 
     it('includes settings shortcut', () => {

@@ -144,7 +144,7 @@
   }
 </script>
 
-<aside class="w-64 h-screen bg-gray-900 border-r border-gray-800 flex flex-col overflow-x-hidden relative">
+<aside class="w-72 h-screen bg-gray-900 border-r border-gray-800 flex flex-col overflow-x-hidden relative">
   <div class="p-4 border-b border-gray-800">
     <h2 class="text-lg font-semibold text-gray-200">BMAD Manager</h2>
   </div>
@@ -152,32 +152,42 @@
   <!-- Main View Switcher -->
   <div class="flex border-b border-gray-800">
     <button
+      onclick={() => setActiveView('dashboards')}
+      class="flex-1 px-2 py-2 text-xs font-medium transition-colors
+        {currentView === 'dashboards'
+        ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
+        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
+      title="Dashboards ({formatShortcutDisplay('Cmd+1')})"
+    >
+      Dashboards
+    </button>
+    <button
       onclick={() => setActiveView('workflows')}
-      class="flex-1 px-3 py-2 text-xs font-medium transition-colors
+      class="flex-1 px-2 py-2 text-xs font-medium transition-colors
         {currentView === 'workflows'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
-      title="Workflows ({formatShortcutDisplay('Cmd+1')})"
+      title="Workflows ({formatShortcutDisplay('Cmd+2')})"
     >
       Workflows
     </button>
     <button
       onclick={() => setActiveView('stories')}
-      class="flex-1 px-3 py-2 text-xs font-medium transition-colors
+      class="flex-1 px-2 py-2 text-xs font-medium transition-colors
         {currentView === 'stories'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
-      title="Stories ({formatShortcutDisplay('Cmd+2')})"
+      title="Stories ({formatShortcutDisplay('Cmd+3')})"
     >
       Stories
     </button>
     <button
       onclick={() => setActiveView('artifacts')}
-      class="flex-1 px-3 py-2 text-xs font-medium transition-colors
+      class="flex-1 px-2 py-2 text-xs font-medium transition-colors
         {currentView === 'artifacts'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
-      title="Artifacts ({formatShortcutDisplay('Cmd+3')})"
+      title="Artifacts ({formatShortcutDisplay('Cmd+4')})"
     >
       Artifacts
     </button>

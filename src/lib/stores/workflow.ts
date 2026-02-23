@@ -7,6 +7,7 @@ import { writable, derived, get } from 'svelte/store';
 import type {
   WorkflowState,
   WorkflowViewMode,
+  DashboardViewMode,
   EpicProgress,
   SprintProgress,
 } from '$lib/types/workflow';
@@ -68,45 +69,65 @@ export function resetWorkflowState(): void {
 }
 
 // =====================================================================
-// Workflow Dashboard Stores (Story 4-8: Multi-Workflow Visualization)
+// Workflow View Mode Store (Story 5-1: Tab Restructure)
+// After restructure, only 'phase' view remains. Future stories (5-6, 5-7)
+// may add 'epic-workflow' and 'story-workflow' views.
 // =====================================================================
 
-const STORAGE_KEY = 'workflow-dashboard-view-mode';
+/**
+ * The currently selected workflow view mode.
+ * After Story 5-1, only 'phase' is valid (Epic/Sprint moved to Dashboards tab).
+ */
+export const workflowViewMode = writable<WorkflowViewMode>('phase');
 
 /**
- * Loads the persisted view mode from localStorage.
+ * Sets the workflow view mode.
+ * Currently only 'phase' is valid, but kept for future extensibility.
  */
-function loadPersistedViewMode(): WorkflowViewMode {
+export function setWorkflowViewMode(mode: WorkflowViewMode): void {
+  workflowViewMode.set(mode);
+}
+
+// =====================================================================
+// Dashboard View Mode Store (Story 5-1: Tab Restructure)
+// =====================================================================
+
+const DASHBOARD_STORAGE_KEY = 'dashboard-view-mode';
+
+/**
+ * Loads the persisted dashboard view mode from localStorage.
+ */
+function loadPersistedDashboardViewMode(): DashboardViewMode {
   if (typeof localStorage === 'undefined') {
-    return 'phase';
+    return 'epic';
   }
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'phase' || stored === 'epic' || stored === 'sprint' || stored === 'story') {
+  const stored = localStorage.getItem(DASHBOARD_STORAGE_KEY);
+  if (stored === 'epic' || stored === 'sprint') {
     return stored;
   }
-  return 'phase';
+  return 'epic';
 }
 
 /**
- * The currently selected workflow dashboard view mode.
+ * The currently selected dashboard view mode.
  * Persisted to localStorage.
  */
-export const workflowViewMode = writable<WorkflowViewMode>(loadPersistedViewMode());
+export const dashboardViewMode = writable<DashboardViewMode>(loadPersistedDashboardViewMode());
 
 /**
- * Subscribes to workflowViewMode changes and persists to localStorage.
+ * Subscribes to dashboardViewMode changes and persists to localStorage.
  */
-workflowViewMode.subscribe((mode) => {
+dashboardViewMode.subscribe((mode) => {
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, mode);
+    localStorage.setItem(DASHBOARD_STORAGE_KEY, mode);
   }
 });
 
 /**
- * Sets the workflow view mode and persists to localStorage.
+ * Sets the dashboard view mode and persists to localStorage.
  */
-export function setWorkflowViewMode(mode: WorkflowViewMode): void {
-  workflowViewMode.set(mode);
+export function setDashboardViewMode(mode: DashboardViewMode): void {
+  dashboardViewMode.set(mode);
 }
 
 /**

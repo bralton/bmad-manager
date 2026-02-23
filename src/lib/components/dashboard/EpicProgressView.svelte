@@ -4,7 +4,7 @@
   import { currentProject } from '$lib/stores/project';
   import { refreshSprintStatus, refreshEpicTitles } from '$lib/stores/stories';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
-  import { selectedArtifact, artifactViewerOpen, selectArtifact } from '$lib/stores/artifacts';
+  import { selectArtifact } from '$lib/stores/artifacts';
   import { artifactBrowserApi } from '$lib/services/artifacts';
 
   // Subscribe to epicProgress store
