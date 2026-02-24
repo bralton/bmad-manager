@@ -189,6 +189,13 @@ export const defaultShortcuts: ShortcutDefinition[] = [
     category: 'sessions',
     global: true,
   },
+  {
+    id: 'toggle-session-drawer',
+    key: 'Cmd+`',
+    description: 'Toggle session drawer',
+    category: 'sessions',
+    global: true,
+  },
 
   // General
   {

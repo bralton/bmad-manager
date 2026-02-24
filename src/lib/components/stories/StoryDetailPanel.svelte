@@ -89,6 +89,7 @@
    */
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
+      // 5-5: Panel has precedence per AC14 - close even if terminal could receive ESC
       onClose();
       return;
     }

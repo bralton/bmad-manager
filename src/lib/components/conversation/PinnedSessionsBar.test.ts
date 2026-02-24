@@ -46,9 +46,15 @@ vi.mock('$lib/services/process', () => ({
 
 // Mock UI store
 import * as uiStore from '$lib/stores/ui';
-vi.mock('$lib/stores/ui', () => ({
-  showToast: vi.fn(),
-}));
+vi.mock('$lib/stores/ui', async () => {
+  const { writable } = await import('svelte/store');
+  return {
+    showToast: vi.fn(),
+    sessionDrawerOpen: writable(false),
+    openSessionDrawer: vi.fn(),
+    closeSessionDrawer: vi.fn(),
+  };
+});
 
 describe('PinnedSessionsBar', () => {
   // Helper to create mock active sessions

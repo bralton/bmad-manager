@@ -41,6 +41,7 @@
 
     switch (event.key) {
       case 'Escape':
+        // 5-5: Modal has precedence per AC14 - close even if terminal could receive ESC
         closeArtifactViewer();
         break;
       case 'ArrowLeft':

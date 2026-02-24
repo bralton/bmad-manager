@@ -19,6 +19,7 @@
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
+      // 5-5: Modal has precedence per AC14 - close even if terminal could receive ESC
       event.preventDefault();
       event.stopPropagation();
       onClose();

@@ -2,9 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import ProjectPicker from '$lib/components/project/ProjectPicker.svelte';
-  import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
-  import SessionTabs from '$lib/components/conversation/SessionTabs.svelte';
   import PinnedSessionsBar from '$lib/components/conversation/PinnedSessionsBar.svelte';
+  import SessionDrawer from '$lib/components/conversation/SessionDrawer.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
   import SettingsModal from '$lib/components/settings/SettingsModal.svelte';
   import DashboardVisualizerContainer from '$lib/components/dashboard/DashboardVisualizerContainer.svelte';
@@ -37,6 +36,7 @@
     openShortcutsCheatsheet,
     closeShortcutsCheatsheet,
     toggleShortcutsCheatsheet,
+    toggleSessionDrawer,
   } from '$lib/stores/ui';
   import {
     registerGlobalShortcuts,
@@ -271,6 +271,7 @@
 
     // Session shortcuts
     setShortcutAction('new-conversation', handleNewConversation);
+    setShortcutAction('toggle-session-drawer', toggleSessionDrawer);
 
     // General shortcuts
     setShortcutAction('command-palette', toggleCommandPalette);
@@ -313,10 +314,6 @@
       });
     }
   });
-
-  function handleClosePanel() {
-    selectSession(null);
-  }
 </script>
 
 <!-- Settings Load Error -->
@@ -366,110 +363,83 @@
   <Sidebar />
 
   <main class="flex-1 flex flex-col min-w-0">
-    <!-- Pinned Sessions Bar - visible across all views (AC#10) -->
+    <!-- Pinned Sessions Bar - visible across all views -->
     <PinnedSessionsBar />
 
-    {#if currentView === 'dashboards'}
-      <!-- Dashboard View (default) - Epic Progress and Sprint Overview -->
-      <DashboardVisualizerContainer />
+    <!-- Session Drawer - push layout, slides down from pinned bar -->
+    <SessionDrawer />
 
-      {#if hasAnySessions}
-        <!-- Session tabs when multiple sessions exist -->
-        <SessionTabs />
+    <!-- Main content area - shrinks when drawer opens -->
+    <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {#if currentView === 'dashboards'}
+        <!-- Dashboard View (default) - Epic Progress and Sprint Overview -->
+        <DashboardVisualizerContainer />
 
-        <!-- Session panels - stack all with proper dimensions, show selected on top -->
-        <div class="flex-1 relative min-h-0">
-          {#each allSessions as sess (`${sess.id}-${sess.startedAt}`)}
-            {@const isSelected = sess.id === selectedId}
-            <div
-              class="absolute inset-0 flex"
-              style="visibility: {isSelected ? 'visible' : 'hidden'}; z-index: {isSelected ? 10 : 0};"
-            >
-              <div class="flex-1">
-                <ConversationPanel session={sess} visible={isSelected} onClose={handleClosePanel} />
+        {#if isSpawningSession}
+          <!-- Session spawning indicator -->
+          <div class="flex-1 flex items-center justify-center">
+            <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700 max-w-md w-full mx-4">
+              <div class="flex items-center gap-3 mb-4">
+                <span class="text-2xl animate-pulse">🚀</span>
+                <span class="text-lg text-gray-100">Starting Claude session...</span>
               </div>
-            </div>
-          {/each}
-        </div>
-      {:else if isSpawningSession}
-        <!-- Session spawning indicator -->
-        <div class="flex-1 flex items-center justify-center">
-          <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700 max-w-md w-full mx-4">
-            <div class="flex items-center gap-3 mb-4">
-              <span class="text-2xl animate-pulse">🚀</span>
-              <span class="text-lg text-gray-100">Starting Claude session...</span>
-            </div>
-            <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500 rounded-full animate-progress-indeterminate"></div>
-            </div>
-            {#if pendingCommand}
-              <p class="text-sm text-gray-400 mt-3">
-                Queued: <span class="text-blue-400 font-mono">/{pendingCommand}</span>
-              </p>
-            {/if}
-          </div>
-        </div>
-      {:else}
-        <div class="flex-1 p-8">
-          <header class="mb-8">
-            <h1 class="text-2xl font-bold">Welcome to BMAD Manager</h1>
-          </header>
-
-          <ProjectPicker />
-        </div>
-      {/if}
-    {:else if currentView === 'workflows'}
-      <!-- Workflow View - BMAD Phase visualization -->
-      <WorkflowVisualizerContainer />
-
-      {#if hasAnySessions}
-        <SessionTabs />
-        <div class="flex-1 relative min-h-0">
-          {#each allSessions as sess (`${sess.id}-${sess.startedAt}`)}
-            {@const isSelected = sess.id === selectedId}
-            <div
-              class="absolute inset-0 flex"
-              style="visibility: {isSelected ? 'visible' : 'hidden'}; z-index: {isSelected ? 10 : 0};"
-            >
-              <div class="flex-1">
-                <ConversationPanel session={sess} visible={isSelected} onClose={handleClosePanel} />
+              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 rounded-full animate-progress-indeterminate"></div>
               </div>
+              {#if pendingCommand}
+                <p class="text-sm text-gray-400 mt-3">
+                  Queued: <span class="text-blue-400 font-mono">/{pendingCommand}</span>
+                </p>
+              {/if}
             </div>
-          {/each}
-        </div>
-      {:else if isSpawningSession}
-        <div class="flex-1 flex items-center justify-center">
-          <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700 max-w-md w-full mx-4">
-            <div class="flex items-center gap-3 mb-4">
-              <span class="text-2xl animate-pulse">🚀</span>
-              <span class="text-lg text-gray-100">Starting Claude session...</span>
-            </div>
-            <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500 rounded-full animate-progress-indeterminate"></div>
-            </div>
-            {#if pendingCommand}
-              <p class="text-sm text-gray-400 mt-3">
-                Queued: <span class="text-blue-400 font-mono">/{pendingCommand}</span>
-              </p>
-            {/if}
           </div>
-        </div>
-      {:else}
-        <div class="flex-1 p-8">
-          <header class="mb-8">
-            <h1 class="text-2xl font-bold">Welcome to BMAD Manager</h1>
-          </header>
+        {:else if !hasAnySessions}
+          <div class="flex-1 p-8">
+            <header class="mb-8">
+              <h1 class="text-2xl font-bold">Welcome to BMAD Manager</h1>
+            </header>
 
-          <ProjectPicker />
-        </div>
+            <ProjectPicker />
+          </div>
+        {/if}
+      {:else if currentView === 'workflows'}
+        <!-- Workflow View - BMAD Phase visualization -->
+        <WorkflowVisualizerContainer />
+
+        {#if isSpawningSession}
+          <div class="flex-1 flex items-center justify-center">
+            <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700 max-w-md w-full mx-4">
+              <div class="flex items-center gap-3 mb-4">
+                <span class="text-2xl animate-pulse">🚀</span>
+                <span class="text-lg text-gray-100">Starting Claude session...</span>
+              </div>
+              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 rounded-full animate-progress-indeterminate"></div>
+              </div>
+              {#if pendingCommand}
+                <p class="text-sm text-gray-400 mt-3">
+                  Queued: <span class="text-blue-400 font-mono">/{pendingCommand}</span>
+                </p>
+              {/if}
+            </div>
+          </div>
+        {:else if !hasAnySessions}
+          <div class="flex-1 p-8">
+            <header class="mb-8">
+              <h1 class="text-2xl font-bold">Welcome to BMAD Manager</h1>
+            </header>
+
+            <ProjectPicker />
+          </div>
+        {/if}
+      {:else if currentView === 'stories'}
+        <!-- Story Board View -->
+        <StoryBoardContainer />
+      {:else if currentView === 'artifacts'}
+        <!-- Artifact Browser View -->
+        <ArtifactBrowser />
       {/if}
-    {:else if currentView === 'stories'}
-      <!-- Story Board View -->
-      <StoryBoardContainer />
-    {:else if currentView === 'artifacts'}
-      <!-- Artifact Browser View -->
-      <ArtifactBrowser />
-    {/if}
+    </div>
   </main>
 </div>
 

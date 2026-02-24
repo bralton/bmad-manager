@@ -112,6 +112,7 @@
 
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape' && !isLoading) {
+      // 5-5: Dialog has precedence per AC14 - close even if terminal could receive ESC
       onClose();
       return;
     }

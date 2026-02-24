@@ -6,7 +6,12 @@
     selectSession,
   } from '$lib/stores/sessions';
   import { terminateSession } from '$lib/services/process';
-  import { showToast } from '$lib/stores/ui';
+  import {
+    showToast,
+    sessionDrawerOpen,
+    openSessionDrawer,
+    closeSessionDrawer,
+  } from '$lib/stores/ui';
   import type { ClaudeSession } from '$lib/services/process';
 
   // Overflow threshold - show this many tabs before overflow
@@ -16,6 +21,7 @@
   let activeList = $derived($activeSessions);
   let selectedId = $derived($currentSessionId);
   let newOutputSet = $derived($sessionsWithNewOutput);
+  let drawerOpen = $derived($sessionDrawerOpen);
 
   // Overflow dropdown state
   let showOverflowDropdown = $state(false);
@@ -42,7 +48,15 @@
   }
 
   function handleTabClick(session: ClaudeSession) {
+    // If clicking the already-selected session with drawer open, toggle drawer closed
+    if (session.id === selectedId && drawerOpen) {
+      closeSessionDrawer();
+      return;
+    }
+
+    // Select the session and open the drawer
     selectSession(session.id);
+    openSessionDrawer();
   }
 
   function handleCloseClick(event: MouseEvent, session: ClaudeSession) {
@@ -84,6 +98,7 @@
 
   function handleOverflowSessionClick(session: ClaudeSession) {
     selectSession(session.id);
+    openSessionDrawer();
     closeOverflowDropdown();
   }
 

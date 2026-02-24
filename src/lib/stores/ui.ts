@@ -224,3 +224,47 @@ export function closeShortcutsCheatsheet() {
 export function toggleShortcutsCheatsheet() {
   shortcutsCheatsheetOpen.update((v) => !v);
 }
+
+/**
+ * Whether the session drawer is currently open.
+ */
+export const sessionDrawerOpen = writable<boolean>(false);
+
+/**
+ * Session drawer height in pixels.
+ * Defaults to 40% of viewport height, with min/max constraints.
+ */
+export const sessionDrawerHeight = writable<number>(
+  typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 400
+);
+
+/**
+ * Opens the session drawer.
+ */
+export function openSessionDrawer() {
+  sessionDrawerOpen.set(true);
+}
+
+/**
+ * Closes the session drawer.
+ */
+export function closeSessionDrawer() {
+  sessionDrawerOpen.set(false);
+}
+
+/**
+ * Toggles the session drawer open/closed.
+ */
+export function toggleSessionDrawer() {
+  sessionDrawerOpen.update((v) => !v);
+}
+
+/**
+ * Sets the session drawer height with min/max constraints.
+ * @param height - The desired height in pixels
+ */
+export function setSessionDrawerHeight(height: number) {
+  const minHeight = 150;
+  const maxHeight = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.8) : 600;
+  sessionDrawerHeight.set(Math.max(minHeight, Math.min(height, maxHeight)));
+}

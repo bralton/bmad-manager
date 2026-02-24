@@ -101,6 +101,7 @@
         }
         break;
       case 'Escape':
+        // 5-5: Modal has precedence per AC14 - close even if terminal could receive ESC
         e.preventDefault();
         closeCommandPalette();
         break;
