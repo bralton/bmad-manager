@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { ArtifactGroups, ArtifactInfo } from '$lib/types/artifact';
+import type { ArtifactGroups, ArtifactInfo, EpicArtifacts } from '$lib/types/artifact';
 
 /**
  * API for artifact browser operations.
@@ -35,6 +35,15 @@ export const artifactBrowserApi = {
    */
   getEpicArtifact: (projectPath: string, epicId: string) =>
     invoke<ArtifactInfo | null>('get_epic_artifact', { projectPath, epicId }),
+
+  /**
+   * Gets artifacts grouped by workflow stage for a specific epic.
+   * @param projectPath - Absolute path to the project directory
+   * @param epicId - Epic ID (e.g., "1", "2.5")
+   * @returns Epic artifacts grouped by planning, implementation, and retro stages
+   */
+  getEpicArtifacts: (projectPath: string, epicId: string) =>
+    invoke<EpicArtifacts>('get_epic_artifacts', { projectPath, epicId }),
 
   /**
    * Reads the content of an artifact file.

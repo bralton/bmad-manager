@@ -73,6 +73,14 @@ fn get_epic_artifact(project_path: String, epic_id: String) -> Option<bmad_parse
     bmad_parser::get_epic_artifact(&path, &epic_id)
 }
 
+/// Gets artifacts grouped by workflow stage for a specific epic.
+/// Returns planning artifacts, story counts, and retro document for the Epic Workflow view.
+#[tauri::command]
+fn get_epic_artifacts(project_path: String, epic_id: String) -> bmad_parser::EpicArtifacts {
+    let path = PathBuf::from(&project_path);
+    bmad_parser::get_epic_artifacts(&path, &epic_id)
+}
+
 /// Reads the content of an artifact file.
 #[tauri::command]
 fn read_artifact_file(file_path: String) -> Result<String, String> {
@@ -402,6 +410,7 @@ pub fn run() {
             list_project_artifacts,
             get_story_artifact,
             get_epic_artifact,
+            get_epic_artifacts,
             read_artifact_file,
             get_epic_titles,
             get_story_tasks,

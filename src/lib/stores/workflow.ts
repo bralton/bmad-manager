@@ -69,20 +69,44 @@ export function resetWorkflowState(): void {
 }
 
 // =====================================================================
-// Workflow View Mode Store (Story 5-1: Tab Restructure)
-// After restructure, only 'phase' view remains. Future stories (5-6, 5-7)
-// may add 'epic-workflow' and 'story-workflow' views.
+// Workflow View Mode Store (Story 5-6: Epic Workflow View)
 // =====================================================================
+
+const WORKFLOW_VIEW_STORAGE_KEY = 'workflow-view-mode';
+
+/**
+ * Loads the persisted workflow view mode from localStorage.
+ */
+function loadPersistedWorkflowViewMode(): WorkflowViewMode {
+  if (typeof localStorage === 'undefined') {
+    return 'phase';
+  }
+  const stored = localStorage.getItem(WORKFLOW_VIEW_STORAGE_KEY);
+  if (stored === 'phase' || stored === 'epic-workflow') {
+    return stored;
+  }
+  return 'phase';
+}
 
 /**
  * The currently selected workflow view mode.
- * After Story 5-1, only 'phase' is valid (Epic/Sprint moved to Dashboards tab).
+ * - 'phase': BMAD Phase view showing discovery/planning/solutioning/implementation
+ * - 'epic-workflow': Epic Workflow view showing planning/implementation/retro per-epic
+ * Persisted to localStorage.
  */
-export const workflowViewMode = writable<WorkflowViewMode>('phase');
+export const workflowViewMode = writable<WorkflowViewMode>(loadPersistedWorkflowViewMode());
 
 /**
- * Sets the workflow view mode.
- * Currently only 'phase' is valid, but kept for future extensibility.
+ * Subscribes to workflowViewMode changes and persists to localStorage.
+ */
+workflowViewMode.subscribe((mode) => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(WORKFLOW_VIEW_STORAGE_KEY, mode);
+  }
+});
+
+/**
+ * Sets the workflow view mode and persists to localStorage.
  */
 export function setWorkflowViewMode(mode: WorkflowViewMode): void {
   workflowViewMode.set(mode);

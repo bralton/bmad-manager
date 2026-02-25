@@ -21,6 +21,7 @@ pub enum ArtifactCategory {
 
 impl ArtifactCategory {
     /// Returns a display-friendly name for the category.
+    #[allow(dead_code)] // Public API for future use
     pub fn display_name(&self) -> &'static str {
         match self {
             ArtifactCategory::Epic => "Epics",
@@ -72,6 +73,7 @@ pub struct ArtifactGroups {
 
 impl ArtifactGroups {
     /// Returns the total count of all artifacts.
+    #[allow(dead_code)] // Public API for future use
     pub fn total_count(&self) -> usize {
         self.epics.len()
             + self.stories.len()
@@ -236,6 +238,53 @@ fn extract_status_from_content(content: &str) -> Option<String> {
     None
 }
 
+/// Extracts the workflowType from markdown file frontmatter.
+///
+/// Looks for a line starting with "workflowType:" in YAML frontmatter.
+fn extract_workflow_type_from_content(content: &str) -> Option<String> {
+    let mut in_frontmatter = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            if in_frontmatter {
+                // End of frontmatter
+                break;
+            }
+            in_frontmatter = true;
+            continue;
+        }
+        if in_frontmatter {
+            let lower = trimmed.to_lowercase();
+            if lower.starts_with("workflowtype:") {
+                return line
+                    .split(':')
+                    .nth(1)
+                    .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Checks if a workflowType matches planning artifact types.
+///
+/// Matches: product-brief, prd, tech-spec, architecture, *-design, *-ux-*
+fn is_planning_workflow_type(workflow_type: &str) -> bool {
+    let wt = workflow_type.to_lowercase();
+
+    // Exact matches
+    if matches!(wt.as_str(), "product-brief" | "prd" | "tech-spec" | "architecture") {
+        return true;
+    }
+
+    // Wildcard patterns: *-design, *-ux-*
+    if wt.ends_with("-design") || wt.contains("-ux-") || wt.starts_with("ux-") {
+        return true;
+    }
+
+    false
+}
+
 /// Parses a single artifact file into ArtifactInfo.
 pub fn parse_artifact_file(path: &Path) -> Option<ArtifactInfo> {
     if !path.is_file() {
@@ -392,6 +441,182 @@ pub fn get_epic_artifact(project_path: &Path, epic_id: &str) -> Option<ArtifactI
 /// Reads the content of an artifact file.
 pub fn read_artifact_content(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
+/// Artifacts grouped by epic workflow stage for the Epic Workflow view.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpicArtifacts {
+    /// Planning stage artifacts (PRD, Tech Spec, Design docs) for this epic
+    pub planning: Vec<ArtifactInfo>,
+    /// Number of done stories for this epic
+    pub story_done_count: usize,
+    /// Total number of stories for this epic
+    pub story_total_count: usize,
+    /// Retrospective artifact if it exists
+    pub retro: Option<ArtifactInfo>,
+}
+
+/// Gets artifacts grouped by workflow stage for a specific epic.
+///
+/// Returns planning artifacts, story counts, and retro document for the epic.
+pub fn get_epic_artifacts(project_path: &Path, epic_id: &str) -> EpicArtifacts {
+    let output_base = project_path.join("_bmad-output");
+    let planning_dir = output_base.join("planning-artifacts");
+    let impl_dir = output_base.join("implementation-artifacts");
+
+    let mut planning = Vec::new();
+    let mut retro = None;
+
+    // Scan planning-artifacts for epic-related docs
+    if planning_dir.exists() {
+        for entry in walkdir::WalkDir::new(&planning_dir)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if let Some(artifact) = parse_artifact_file(path) {
+                // Include planning docs that reference this epic
+                if is_planning_artifact_for_epic(&artifact, epic_id, path) {
+                    planning.push(artifact);
+                }
+            }
+        }
+    }
+
+    // Scan implementation-artifacts for epic-specific files and retro
+    if impl_dir.exists() {
+        for entry in walkdir::WalkDir::new(&impl_dir)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+                // Check for retro files: *retro*{epic_id}*.md or epic-{id}-retro*.md
+                if is_retro_file_for_epic(filename, epic_id) {
+                    if let Some(artifact) = parse_artifact_file(path) {
+                        retro = Some(artifact);
+                    }
+                }
+                // Check for design docs tied to this epic
+                else if is_design_doc_for_epic(filename, epic_id) {
+                    if let Some(artifact) = parse_artifact_file(path) {
+                        planning.push(artifact);
+                    }
+                }
+            }
+        }
+    }
+
+    // Get story counts from sprint status
+    let sprint_status = super::parse_sprint_status(project_path);
+    let epic_stories: Vec<_> = sprint_status
+        .stories
+        .iter()
+        .filter(|s| s.epic_id == epic_id)
+        .collect();
+
+    let story_total_count = epic_stories.len();
+    let story_done_count = epic_stories
+        .iter()
+        .filter(|s| s.status == super::StoryStatus::Done)
+        .count();
+
+    // Sort planning artifacts by title
+    planning.sort_by(|a, b| a.title.cmp(&b.title));
+
+    EpicArtifacts {
+        planning,
+        story_done_count,
+        story_total_count,
+        retro,
+    }
+}
+
+/// Checks if a planning artifact is related to a specific epic.
+///
+/// An artifact is considered a planning artifact for an epic if:
+/// 1. Its workflowType matches planning types (product-brief, prd, tech-spec, etc.)
+/// 2. OR its filename contains the epic reference (epic-{id})
+/// 3. AND it's associated with this specific epic
+fn is_planning_artifact_for_epic(artifact: &ArtifactInfo, epic_id: &str, path: &Path) -> bool {
+    // First check: does this artifact reference this epic?
+    let references_epic = if let Some(ref aid) = artifact.epic_id {
+        aid == epic_id
+    } else if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+        let filename_lower = filename.to_lowercase();
+        let epic_pattern = format!("epic-{}", epic_id.to_lowercase());
+        let epic_pattern_dot = format!("epic-{}.", epic_id.to_lowercase());
+        filename_lower.contains(&epic_pattern) || filename_lower.contains(&epic_pattern_dot)
+    } else {
+        false
+    };
+
+    if !references_epic {
+        return false;
+    }
+
+    // Second check: is this a planning-type artifact?
+    // Check workflowType from file content
+    if let Ok(content) = fs::read_to_string(path) {
+        if let Some(workflow_type) = extract_workflow_type_from_content(&content) {
+            if is_planning_workflow_type(&workflow_type) {
+                return true;
+            }
+        }
+    }
+
+    // Fall back to filename-based detection for artifacts without workflowType
+    if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+        let filename_lower = filename.to_lowercase();
+        // Planning filename patterns
+        if filename_lower.contains("-prd")
+            || filename_lower.contains("-tech-spec")
+            || filename_lower.contains("-architecture")
+            || filename_lower.contains("-product-brief")
+        {
+            return true;
+        }
+    }
+
+    // If it references the epic but we can't determine type, include it
+    // (conservative approach - better to show than hide)
+    true
+}
+
+/// Checks if a file is a retrospective for a specific epic.
+fn is_retro_file_for_epic(filename: &str, epic_id: &str) -> bool {
+    let filename_lower = filename.to_lowercase();
+
+    // Pattern 1: epic-{id}-retro*.md (e.g., epic-4-retrospective.md, epic-4-retro-2026-02-22.md)
+    let pattern1 = format!("epic-{}-retro", epic_id.to_lowercase());
+
+    // Pattern 2: {id}-retrospective.md (e.g., 4-retrospective.md)
+    let pattern2 = format!("{}-retrospective", epic_id.to_lowercase());
+
+    filename_lower.starts_with(&pattern1) || filename_lower.starts_with(&pattern2)
+}
+
+/// Checks if a file is a design doc for a specific epic.
+fn is_design_doc_for_epic(filename: &str, epic_id: &str) -> bool {
+    let filename_lower = filename.to_lowercase();
+
+    // Design docs: epic-{id}-ux-design.md, epic-{id}-tech-reference.md
+    let pattern = format!("epic-{}-", epic_id.to_lowercase());
+
+    if !filename_lower.starts_with(&pattern) {
+        return false;
+    }
+
+    // Exclude retro files (handled separately)
+    if filename_lower.contains("-retro") {
+        return false;
+    }
+
+    // Include design-related files
+    filename_lower.contains("-ux-") || filename_lower.contains("-design") || filename_lower.contains("-tech-")
 }
 
 #[cfg(test)]
@@ -558,6 +783,57 @@ mod tests {
     fn test_extract_status_none() {
         let content = "# Title\n\nNo status line here";
         assert_eq!(extract_status_from_content(content), None);
+    }
+
+    // ========== Workflow type extraction tests ==========
+
+    #[test]
+    fn test_extract_workflow_type_from_frontmatter() {
+        let content = "---\ntitle: Test\nworkflowType: prd\nstatus: draft\n---\n# Content";
+        assert_eq!(
+            extract_workflow_type_from_content(content),
+            Some("prd".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_workflow_type_quoted() {
+        let content = "---\nworkflowType: \"tech-spec\"\n---\n# Content";
+        assert_eq!(
+            extract_workflow_type_from_content(content),
+            Some("tech-spec".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_workflow_type_none() {
+        let content = "# No frontmatter\n\nJust content";
+        assert_eq!(extract_workflow_type_from_content(content), None);
+    }
+
+    #[test]
+    fn test_is_planning_workflow_type_exact_matches() {
+        assert!(is_planning_workflow_type("prd"));
+        assert!(is_planning_workflow_type("PRD"));
+        assert!(is_planning_workflow_type("tech-spec"));
+        assert!(is_planning_workflow_type("architecture"));
+        assert!(is_planning_workflow_type("product-brief"));
+    }
+
+    #[test]
+    fn test_is_planning_workflow_type_wildcards() {
+        assert!(is_planning_workflow_type("ux-design"));
+        assert!(is_planning_workflow_type("epic-5-ux-design"));
+        assert!(is_planning_workflow_type("system-design"));
+        assert!(is_planning_workflow_type("ux-wireframes"));
+    }
+
+    #[test]
+    fn test_is_planning_workflow_type_non_planning() {
+        assert!(!is_planning_workflow_type("story"));
+        assert!(!is_planning_workflow_type("retrospective"));
+        assert!(!is_planning_workflow_type("epic"));
+        assert!(!is_planning_workflow_type("random-workflow"));
     }
 
     // ========== Parse artifact tests ==========

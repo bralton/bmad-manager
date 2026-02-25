@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import WorkflowVisualizer from './WorkflowVisualizer.svelte';
+  import WorkflowViewTabs from './WorkflowViewTabs.svelte';
+  import EpicWorkflow from './EpicWorkflow.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
@@ -9,6 +11,7 @@
     workflowError,
     refreshWorkflowState,
     resetWorkflowState,
+    workflowViewMode,
   } from '$lib/stores/workflow';
   import { openCommandPalette } from '$lib/stores/ui';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
@@ -19,6 +22,7 @@
   let workflow = $derived($workflowState);
   let loading = $derived($workflowLoading);
   let error = $derived($workflowError);
+  let viewMode = $derived($workflowViewMode);
 
   // Track the last project path to detect changes
   let lastProjectPath: string | null = null;
@@ -108,6 +112,9 @@
 
 {#if project?.state === 'fully-initialized'}
   <div class="border-b border-gray-800 bg-gray-900/50">
+    <!-- Workflow sub-tabs -->
+    <WorkflowViewTabs />
+
     {#if loading && !workflow}
       <!-- Initial loading state -->
       <div class="h-20 flex items-center justify-center">
@@ -129,19 +136,24 @@
           </button>
         </div>
       </div>
-    {:else if workflow}
-      <!-- BMAD Phase view - the only workflow view after Story 5-1 Tab Restructure -->
-      <WorkflowVisualizer workflowState={workflow} />
-    {:else}
-      <div class="py-6">
-        <EmptyState
-          icon="workflow"
-          title="Workflow state unavailable"
-          description="The project may not have any BMAD artifacts yet. Start a workflow to begin."
-          actionLabel="Open Command Palette"
-          onAction={() => openCommandPalette()}
-        />
-      </div>
+    {:else if viewMode === 'phase'}
+      <!-- BMAD Phase view -->
+      {#if workflow}
+        <WorkflowVisualizer workflowState={workflow} />
+      {:else}
+        <div class="py-6">
+          <EmptyState
+            icon="workflow"
+            title="Workflow state unavailable"
+            description="The project may not have any BMAD artifacts yet. Start a workflow to begin."
+            actionLabel="Open Command Palette"
+            onAction={() => openCommandPalette()}
+          />
+        </div>
+      {/if}
+    {:else if viewMode === 'epic-workflow'}
+      <!-- Epic Workflow view -->
+      <EpicWorkflow />
     {/if}
   </div>
 {/if}

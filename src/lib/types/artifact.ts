@@ -37,6 +37,21 @@ export interface ArtifactInfo {
 }
 
 /**
+ * Artifacts grouped by epic workflow stage for the Epic Workflow view.
+ * Used to display planning → implementation → retro stages.
+ */
+export interface EpicArtifacts {
+  /** Planning stage artifacts (PRD, Tech Spec, Design docs) for this epic */
+  planning: ArtifactInfo[];
+  /** Number of done stories for this epic */
+  storyDoneCount: number;
+  /** Total number of stories for this epic */
+  storyTotalCount: number;
+  /** Retrospective artifact if it exists */
+  retro: ArtifactInfo | null;
+}
+
+/**
  * Groups of artifacts organized by category.
  * Uses camelCase to match Rust serde serialization.
  */

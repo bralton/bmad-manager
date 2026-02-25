@@ -85,10 +85,10 @@ export interface Workflow {
 
 /**
  * View mode for the workflow tab.
- * After Story 5-1 Tab Restructure, only 'phase' remains (Epic/Sprint moved to Dashboards).
- * Future stories may add 'epic-workflow' and 'story-workflow'.
+ * - 'phase': BMAD Phase view showing discovery/planning/solutioning/implementation
+ * - 'epic-workflow': Epic Workflow view showing planning/implementation/retro per-epic
  */
-export type WorkflowViewMode = 'phase';
+export type WorkflowViewMode = 'phase' | 'epic-workflow';
 
 /**
  * View mode for the dashboard tab (Story 5-1: Tab Restructure).
