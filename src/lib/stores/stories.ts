@@ -5,6 +5,7 @@
 
 import { writable, derived, get } from 'svelte/store';
 import type { SprintStatus, Story, StoryStatus } from '$lib/types/stories';
+import type { StoryProgress } from '$lib/types/workflow';
 import { storyApi } from '$lib/services/stories';
 
 /**
@@ -132,6 +133,8 @@ export function resetSprintStatus(): void {
   sprintStatusError.set(null);
   selectedStoryId.set(null);
   epicTitles.set(new Map());
+  // Clear tasks cache on reset (added for Story 5-8)
+  storyTasksCache.set(new Map());
 }
 
 /**
@@ -146,4 +149,55 @@ export async function refreshEpicTitles(projectPath: string): Promise<void> {
     console.error('Failed to load epic titles:', error);
     // Don't throw - epic titles are optional enhancement
   }
+}
+
+// =====================================================================
+// Story Tasks Cache (Story 5-8: Kanban Enhancement)
+// =====================================================================
+
+/**
+ * Cache for story task progress data.
+ * Maps story ID to StoryProgress for instant re-expansion.
+ */
+export const storyTasksCache = writable<Map<string, StoryProgress>>(new Map());
+
+/**
+ * Gets cached task progress for a story.
+ * @param storyId - The story ID to look up
+ * @returns The cached StoryProgress, or undefined if not cached
+ */
+export function getCachedTasks(storyId: string): StoryProgress | undefined {
+  return get(storyTasksCache).get(storyId);
+}
+
+/**
+ * Sets cached task progress for a story.
+ * @param storyId - The story ID to cache
+ * @param progress - The StoryProgress data to cache
+ */
+export function setCachedTasks(storyId: string, progress: StoryProgress): void {
+  storyTasksCache.update((cache) => {
+    cache.set(storyId, progress);
+    return cache;
+  });
+}
+
+/**
+ * Invalidates cached task progress for a story.
+ * Called when file watcher detects story file modification.
+ * @param storyId - The story ID to invalidate
+ */
+export function invalidateCachedTasks(storyId: string): void {
+  storyTasksCache.update((cache) => {
+    cache.delete(storyId);
+    return cache;
+  });
+}
+
+/**
+ * Clears all cached task progress.
+ * Called on project change or reset.
+ */
+export function clearTasksCache(): void {
+  storyTasksCache.set(new Map());
 }

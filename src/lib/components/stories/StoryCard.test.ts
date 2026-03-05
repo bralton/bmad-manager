@@ -4,15 +4,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import StoryCard from './StoryCard.svelte';
-import { selectedStoryId, resetSprintStatus } from '$lib/stores/stories';
+import { selectedStoryId, resetSprintStatus, setCachedTasks, storyTasksCache } from '$lib/stores/stories';
 import { worktrees, worktreeCreating, resetWorktrees, setWorktreeCreating } from '$lib/stores/worktrees';
 import { conflictWarnings, resetConflicts } from '$lib/stores/conflicts';
 import type { Story } from '$lib/types/stories';
 import type { Worktree } from '$lib/types/worktree';
 import type { ConflictWarning } from '$lib/types/conflict';
+import type { StoryProgress } from '$lib/types/workflow';
 
 // Mock the worktrees service
 vi.mock('$lib/services/worktrees', () => ({
@@ -42,6 +43,23 @@ vi.mock('$lib/stores/project', () => ({
 vi.mock('$lib/stores/ui', () => ({
   showSuccessToast: vi.fn(),
   showErrorToast: vi.fn(),
+}));
+
+// Mock the stories service
+vi.mock('$lib/services/stories', () => ({
+  storyApi: {
+    getStoryTasks: vi.fn(),
+    getSprintStatus: vi.fn(),
+    getEpicTitles: vi.fn(),
+  },
+}));
+
+// Mock the artifacts service
+vi.mock('$lib/services/artifacts', () => ({
+  artifactBrowserApi: {
+    getStoryArtifact: vi.fn(),
+  },
+  selectArtifact: vi.fn(),
 }));
 
 import { worktreeApi } from '$lib/services/worktrees';
@@ -332,6 +350,289 @@ describe('StoryCard', () => {
       // 4-3 should NOT show conflict badge since 4-4 has the conflict
       const warningIcon = container.querySelector('.text-amber-400 svg');
       expect(warningIcon).not.toBeInTheDocument();
+    });
+  });
+
+  describe('task progress features (Story 5-8)', () => {
+    const createTaskProgress = (
+      completed: number,
+      total: number
+    ): StoryProgress => ({
+      storyId: '3-2-test',
+      tasks: Array.from({ length: total }, (_, i) => ({
+        text: `Task ${i + 1}`,
+        completed: i < completed,
+        level: 0,
+      })),
+      total,
+      completed,
+      percentage: Math.round((completed / total) * 100),
+    });
+
+    beforeEach(() => {
+      storyTasksCache.set(new Map());
+    });
+
+    describe('task count display (AC #1, #2)', () => {
+      it('displays task count when cached tasks exist', async () => {
+        const story = createStory({ id: '3-2-test', status: 'in-progress' });
+        setCachedTasks('3-2-test', createTaskProgress(8, 12));
+
+        render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('8/12 tasks')).toBeInTheDocument();
+        });
+      });
+
+      it('displays progress bar with correct percentage', async () => {
+        const story = createStory({ id: '3-2-progress', status: 'in-progress' });
+        setCachedTasks('3-2-progress', createTaskProgress(6, 10)); // 60%
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          const progressBar = container.querySelector('[role="progressbar"]');
+          expect(progressBar).toBeInTheDocument();
+          expect(progressBar?.getAttribute('aria-valuenow')).toBe('60');
+        });
+      });
+
+      it('shows progress bar filling proportionally', async () => {
+        const story = createStory({ id: '3-2-fill', status: 'in-progress' });
+        setCachedTasks('3-2-fill', createTaskProgress(3, 4)); // 75%
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          const progressFill = container.querySelector('.bg-green-500');
+          expect(progressFill).toBeInTheDocument();
+          expect(progressFill?.getAttribute('style')).toContain('width: 75%');
+        });
+      });
+    });
+
+    describe('backlog and empty state (AC #8, #9)', () => {
+      it('does not show task features for backlog stories', () => {
+        const story = createStory({ id: '3-2-backlog', status: 'backlog' });
+        setCachedTasks('3-2-backlog', createTaskProgress(5, 10));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        // Should not show task count even if cached
+        expect(screen.queryByText(/tasks/)).not.toBeInTheDocument();
+        // Should not show progress bar
+        expect(container.querySelector('[role="progressbar"]')).not.toBeInTheDocument();
+      });
+
+      it('does not show task features when no tasks exist', async () => {
+        const story = createStory({ id: '3-2-notasks', status: 'in-progress' });
+        // Do not set cached tasks - simulates no tasks
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        // Allow time for effect to run
+        await waitFor(() => {
+          expect(screen.queryByText(/tasks/)).not.toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('expand/collapse behavior (AC #3, #5)', () => {
+      it('shows expand button when tasks exist', async () => {
+        const story = createStory({ id: '3-2-expand', status: 'in-progress' });
+        setCachedTasks('3-2-expand', createTaskProgress(3, 5));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          const expandButton = container.querySelector('[aria-label="Expand task list"]');
+          expect(expandButton).toBeInTheDocument();
+        });
+      });
+
+      it('expands task list when expand button is clicked', async () => {
+        const story = createStory({ id: '3-2-click-expand', status: 'in-progress' });
+        setCachedTasks('3-2-click-expand', createTaskProgress(2, 4));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('2/4 tasks')).toBeInTheDocument();
+        });
+
+        const expandButton = container.querySelector('[aria-label="Expand task list"]');
+        expect(expandButton).not.toBeNull();
+        await fireEvent.click(expandButton!);
+
+        await waitFor(() => {
+          // Check that task list is now visible
+          expect(screen.getByText('Task 1')).toBeInTheDocument();
+        });
+      });
+
+      it('collapses task list when collapse button is clicked', async () => {
+        const story = createStory({ id: '3-2-collapse', status: 'in-progress' });
+        setCachedTasks('3-2-collapse', createTaskProgress(1, 2));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('1/2 tasks')).toBeInTheDocument();
+        });
+
+        // Expand first
+        const expandButton = container.querySelector('[aria-label="Expand task list"]');
+        await fireEvent.click(expandButton!);
+
+        await waitFor(() => {
+          expect(screen.getByText('Task 1')).toBeInTheDocument();
+        });
+
+        // Now collapse
+        const collapseButton = container.querySelector('[aria-label="Collapse task list"]');
+        await fireEvent.click(collapseButton!);
+
+        await waitFor(() => {
+          expect(screen.queryByText('Task 1')).not.toBeInTheDocument();
+        });
+      });
+
+      it('does not stop card click from opening detail panel', async () => {
+        const story = createStory({ id: '3-2-cardclick', status: 'in-progress' });
+        setCachedTasks('3-2-cardclick', createTaskProgress(1, 1));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('1/1 tasks')).toBeInTheDocument();
+        });
+
+        // Click the main card button (not the expand button)
+        const button = container.querySelector('button');
+        await fireEvent.click(button!);
+
+        // Should set selectedStoryId
+        expect(get(selectedStoryId)).toBe('3-2-cardclick');
+      });
+    });
+
+    describe('keyboard accessibility (AC #12)', () => {
+      it('has correct aria-expanded attribute on expand button', async () => {
+        const story = createStory({ id: '3-2-aria', status: 'in-progress' });
+        setCachedTasks('3-2-aria', createTaskProgress(2, 3));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          const button = container.querySelector('[aria-expanded]');
+          expect(button).toBeInTheDocument();
+          expect(button?.getAttribute('aria-expanded')).toBe('false');
+        });
+      });
+
+      it('updates aria-expanded when expanded', async () => {
+        const story = createStory({ id: '3-2-aria-toggle', status: 'in-progress' });
+        setCachedTasks('3-2-aria-toggle', createTaskProgress(1, 2));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('1/2 tasks')).toBeInTheDocument();
+        });
+
+        const expandButton = container.querySelector('[aria-expanded="false"]');
+        await fireEvent.click(expandButton!);
+
+        await waitFor(() => {
+          const expandedButton = container.querySelector('[aria-expanded="true"]');
+          expect(expandedButton).toBeInTheDocument();
+        });
+      });
+
+      it('includes task count in main button aria-label', async () => {
+        const story = createStory({ id: '3-2-arialabel', status: 'in-progress' });
+        setCachedTasks('3-2-arialabel', createTaskProgress(5, 10));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          const button = container.querySelector('button');
+          expect(button?.getAttribute('aria-label')).toContain('5 of 10 tasks complete');
+        });
+      });
+
+      it('expands task list on Enter keypress', async () => {
+        const story = createStory({ id: '3-2-enter-key', status: 'in-progress' });
+        setCachedTasks('3-2-enter-key', createTaskProgress(2, 3));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('2/3 tasks')).toBeInTheDocument();
+        });
+
+        const expandButton = container.querySelector('[aria-label="Expand task list"]');
+        expect(expandButton).not.toBeNull();
+        await fireEvent.keyDown(expandButton!, { key: 'Enter' });
+
+        await waitFor(() => {
+          expect(screen.getByText('Task 1')).toBeInTheDocument();
+        });
+      });
+
+      it('expands task list on Space keypress', async () => {
+        const story = createStory({ id: '3-2-space-key', status: 'in-progress' });
+        setCachedTasks('3-2-space-key', createTaskProgress(2, 3));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('2/3 tasks')).toBeInTheDocument();
+        });
+
+        const expandButton = container.querySelector('[aria-label="Expand task list"]');
+        expect(expandButton).not.toBeNull();
+        await fireEvent.keyDown(expandButton!, { key: ' ' });
+
+        await waitFor(() => {
+          expect(screen.getByText('Task 1')).toBeInTheDocument();
+        });
+      });
+
+      it('disables expand button during loading', async () => {
+        const story = createStory({ id: '3-2-loading-disabled', status: 'in-progress' });
+        setCachedTasks('3-2-loading-disabled', createTaskProgress(1, 2));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('1/2 tasks')).toBeInTheDocument();
+        });
+
+        const expandButton = container.querySelector('[aria-label="Expand task list"]');
+        expect(expandButton).not.toBeNull();
+        // When not loading, should be tabbable
+        expect(expandButton?.getAttribute('tabindex')).toBe('0');
+        expect(expandButton?.getAttribute('aria-disabled')).toBe('false');
+      });
+
+      it('has visible focus indicator on expand button', async () => {
+        const story = createStory({ id: '3-2-focus', status: 'in-progress' });
+        setCachedTasks('3-2-focus', createTaskProgress(1, 2));
+
+        const { container } = render(StoryCard, { props: { story } });
+
+        await waitFor(() => {
+          expect(screen.getByText('1/2 tasks')).toBeInTheDocument();
+        });
+
+        const expandButton = container.querySelector('[aria-label="Expand task list"]');
+        expect(expandButton).not.toBeNull();
+        // Check for focus styling classes
+        expect(expandButton?.classList.contains('focus:bg-gray-700')).toBe(true);
+        expect(expandButton?.classList.contains('focus:ring-1')).toBe(true);
+      });
     });
   });
 });

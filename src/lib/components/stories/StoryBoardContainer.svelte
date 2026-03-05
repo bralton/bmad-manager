@@ -14,6 +14,7 @@
     refreshSprintStatus,
     refreshEpicTitles,
     resetSprintStatus,
+    invalidateCachedTasks,
   } from '$lib/stores/stories';
   import { validateAndRefreshWorktrees, resetWorktrees, worktreesByStory } from '$lib/stores/worktrees';
   import { refreshConflicts, resetConflicts } from '$lib/stores/conflicts';
@@ -115,6 +116,15 @@
         // AC #5 - refresh conflicts when story files change
         onWorkflowStateChanged: async () => {
           await refreshConflicts(projectPath);
+        },
+        // Story 5-8 AC #10 - invalidate task cache when story files are modified
+        onArtifactModified: (path: string) => {
+          // Check if it's a story file (matches pattern: epic-story-slug.md)
+          const match = path.match(/(\d+(?:\.\d+)?-\d+(?:-\d+)?-[^/]+)\.md$/);
+          if (match) {
+            const storyId = match[1];
+            invalidateCachedTasks(storyId);
+          }
         },
       };
 

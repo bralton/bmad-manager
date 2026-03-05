@@ -1,6 +1,6 @@
 <script lang="ts">
   import { get } from 'svelte/store';
-  import { selectedStoryId } from '$lib/stores/stories';
+  import { selectedStoryId, getCachedTasks, setCachedTasks } from '$lib/stores/stories';
   import { currentProject } from '$lib/stores/project';
   import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees, currentWorktreeStoryId } from '$lib/stores/worktrees';
   import { conflictSummaries } from '$lib/stores/conflicts';
@@ -8,10 +8,79 @@
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
   import { KANBAN_COLUMNS, type Story } from '$lib/types/stories';
+  import type { StoryProgress } from '$lib/types/workflow';
   import { artifactBrowserApi } from '$lib/services/artifacts';
+  import { storyApi } from '$lib/services/stories';
   import { selectArtifact } from '$lib/stores/artifacts';
+  import TaskListInline from './TaskListInline.svelte';
 
   let { story }: { story: Story } = $props();
+
+  // Task progress state (Story 5-8: Kanban Enhancement)
+  let taskProgress = $state<StoryProgress | null>(null);
+  let tasksLoading = $state(false);
+  let isExpanded = $state(false);
+
+  // Check if this story should show task features (not backlog)
+  let showTaskFeatures = $derived(story.status !== 'backlog');
+
+  // Fetch task stats on mount (non-blocking) - only for non-backlog stories
+  $effect(() => {
+    if (showTaskFeatures) {
+      // Check cache first
+      const cached = getCachedTasks(story.id);
+      if (cached) {
+        taskProgress = cached;
+      } else {
+        // Fetch tasks in background (non-blocking)
+        fetchTaskProgress();
+      }
+    }
+  });
+
+  async function fetchTaskProgress() {
+    const project = get(currentProject);
+    if (!project?.path) return;
+
+    try {
+      // First get the story artifact to find the file path
+      const artifact = await artifactBrowserApi.getStoryArtifact(project.path, story.id);
+      if (artifact?.path) {
+        const tasks = await storyApi.getStoryTasks(artifact.path);
+        if (tasks) {
+          taskProgress = tasks;
+          setCachedTasks(story.id, tasks);
+        }
+      }
+    } catch (error) {
+      // Silently fail - task progress is optional enhancement
+      console.debug('Failed to fetch task progress for', story.id, error);
+    }
+  }
+
+  async function handleExpandToggle(event: MouseEvent | KeyboardEvent) {
+    event.stopPropagation();
+
+    if (isExpanded) {
+      // Collapse
+      isExpanded = false;
+    } else {
+      // Expand - fetch tasks if not cached
+      if (!taskProgress && !tasksLoading) {
+        tasksLoading = true;
+        await fetchTaskProgress();
+        tasksLoading = false;
+      }
+      isExpanded = true;
+    }
+  }
+
+  function handleExpandKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleExpandToggle(event);
+    }
+  }
 
   // Get worktree for this story
   let worktree = $derived($worktreesByStory.get(story.id));
@@ -121,8 +190,15 @@
   }
 
   // Build aria label
+  let taskAriaLabel = $derived.by(() => {
+    if (taskProgress && taskProgress.total > 0) {
+      return `, ${taskProgress.completed} of ${taskProgress.total} tasks complete`;
+    }
+    return '';
+  });
+
   let ariaLabel = $derived(
-    `Story ${displayId}: ${title}, status: ${columnConfig.label}${worktree ? ', has worktree' : ''}${isCurrentWorktree ? ', current' : ''}${hasConflicts ? ', has file conflicts' : ''}`
+    `Story ${displayId}: ${title}, status: ${columnConfig.label}${taskAriaLabel}${worktree ? ', has worktree' : ''}${isCurrentWorktree ? ', current' : ''}${hasConflicts ? ', has file conflicts' : ''}`
   );
 
   // Build CSS classes for button
@@ -245,6 +321,58 @@
     <div class="text-sm font-medium text-gray-400 truncate italic">Creating worktree...</div>
   {:else}
     <div class="text-sm font-medium text-white truncate">{title}</div>
+  {/if}
+
+  <!-- Task progress row (AC #1, #2, #3, #8, #9) -->
+  {#if showTaskFeatures && taskProgress && taskProgress.total > 0}
+    <div class="mt-2 flex items-center gap-2">
+      <!-- Task count -->
+      <span class="text-xs text-gray-400 whitespace-nowrap">
+        {taskProgress.completed}/{taskProgress.total} tasks
+      </span>
+
+      <!-- Progress bar -->
+      <div class="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden" role="progressbar" aria-valuenow={taskProgress.percentage} aria-valuemin={0} aria-valuemax={100}>
+        <div class="h-full bg-green-500 transition-all" style="width: {taskProgress.percentage}%"></div>
+      </div>
+
+      <!-- Expand/collapse button -->
+      <div
+        onclick={handleExpandToggle}
+        onkeydown={handleExpandKeydown}
+        role="button"
+        tabindex={tasksLoading ? -1 : 0}
+        class="p-0.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 focus:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-colors"
+        class:pointer-events-none={tasksLoading}
+        class:opacity-50={tasksLoading}
+        aria-expanded={isExpanded}
+        aria-disabled={tasksLoading}
+        aria-label={isExpanded ? 'Collapse task list' : 'Expand task list'}
+        title={isExpanded ? 'Collapse tasks' : 'Expand tasks'}
+      >
+        {#if tasksLoading}
+          <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        {:else if isExpanded}
+          <!-- Chevron up -->
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+          </svg>
+        {:else}
+          <!-- Chevron down -->
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
+  <!-- Expanded task list (AC #3, #4, #5) -->
+  {#if isExpanded && taskProgress && taskProgress.tasks.length > 0}
+    <TaskListInline tasks={taskProgress.tasks} />
   {/if}
 </button>
 

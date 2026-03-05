@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { SprintStatus } from '$lib/types/stories';
+import type { StoryProgress } from '$lib/types/workflow';
 
 /**
  * API for story and sprint status operations.
@@ -27,4 +28,13 @@ export const storyApi = {
    */
   getEpicTitles: (projectPath: string) =>
     invoke<Record<string, string>>('get_epic_titles', { projectPath }),
+
+  /**
+   * Gets story tasks from a story file.
+   * Parses markdown task checkboxes to show task progress on kanban cards.
+   * @param storyPath - Absolute path to the story markdown file
+   * @returns Story tasks with progress info, or null if no tasks found
+   */
+  getStoryTasks: (storyPath: string) =>
+    invoke<StoryProgress | null>('get_story_tasks', { storyPath }),
 };

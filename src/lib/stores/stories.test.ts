@@ -13,11 +13,17 @@ import {
   storiesByStatus,
   storiesByEpic,
   epicTitles,
+  storyTasksCache,
   refreshSprintStatus,
   refreshEpicTitles,
   resetSprintStatus,
+  getCachedTasks,
+  setCachedTasks,
+  invalidateCachedTasks,
+  clearTasksCache,
 } from './stories';
 import type { SprintStatus, Story } from '$lib/types/stories';
+import type { StoryProgress } from '$lib/types/workflow';
 
 // Mock the storyApi
 vi.mock('$lib/services/stories', () => ({
@@ -320,6 +326,182 @@ describe('stories store', () => {
       const titles = get(epicTitles);
       expect(titles.get('1')).toBe('New Title');
       expect(titles.get('2')).toBe('Another');
+    });
+  });
+
+  describe('storyTasksCache (Story 5-8)', () => {
+    const createMockProgress = (storyId: string, completed: number, total: number): StoryProgress => ({
+      storyId,
+      tasks: Array.from({ length: total }, (_, i) => ({
+        text: `Task ${i + 1}`,
+        completed: i < completed,
+        level: 0,
+      })),
+      total,
+      completed,
+      percentage: Math.round((completed / total) * 100),
+    });
+
+    beforeEach(() => {
+      clearTasksCache();
+    });
+
+    describe('getCachedTasks', () => {
+      it('returns undefined when cache is empty', () => {
+        expect(getCachedTasks('1-1-test')).toBeUndefined();
+      });
+
+      it('returns cached progress when available', () => {
+        const progress = createMockProgress('1-1-test', 5, 10);
+        setCachedTasks('1-1-test', progress);
+
+        const cached = getCachedTasks('1-1-test');
+        expect(cached).toEqual(progress);
+      });
+
+      it('returns undefined for uncached story when others are cached', () => {
+        setCachedTasks('1-1-cached', createMockProgress('1-1-cached', 3, 5));
+
+        expect(getCachedTasks('1-2-uncached')).toBeUndefined();
+      });
+    });
+
+    describe('setCachedTasks', () => {
+      it('adds progress to cache', () => {
+        const progress = createMockProgress('2-1-auth', 8, 12);
+        setCachedTasks('2-1-auth', progress);
+
+        expect(get(storyTasksCache).get('2-1-auth')).toEqual(progress);
+      });
+
+      it('overwrites existing cache entry', () => {
+        const oldProgress = createMockProgress('2-1-auth', 3, 10);
+        const newProgress = createMockProgress('2-1-auth', 8, 10);
+
+        setCachedTasks('2-1-auth', oldProgress);
+        setCachedTasks('2-1-auth', newProgress);
+
+        expect(getCachedTasks('2-1-auth')?.completed).toBe(8);
+      });
+
+      it('caches multiple stories independently', () => {
+        setCachedTasks('1-1-first', createMockProgress('1-1-first', 1, 2));
+        setCachedTasks('1-2-second', createMockProgress('1-2-second', 3, 4));
+
+        expect(get(storyTasksCache).size).toBe(2);
+        expect(getCachedTasks('1-1-first')?.completed).toBe(1);
+        expect(getCachedTasks('1-2-second')?.completed).toBe(3);
+      });
+    });
+
+    describe('invalidateCachedTasks', () => {
+      it('removes specific story from cache', () => {
+        setCachedTasks('1-1-target', createMockProgress('1-1-target', 2, 5));
+        setCachedTasks('1-2-keep', createMockProgress('1-2-keep', 3, 6));
+
+        invalidateCachedTasks('1-1-target');
+
+        expect(getCachedTasks('1-1-target')).toBeUndefined();
+        expect(getCachedTasks('1-2-keep')).toBeDefined();
+      });
+
+      it('does not throw when invalidating non-existent story', () => {
+        expect(() => invalidateCachedTasks('non-existent')).not.toThrow();
+      });
+
+      it('handles various story ID formats', () => {
+        // Standard format
+        setCachedTasks('5-8-stories-kanban', createMockProgress('5-8-stories-kanban', 1, 1));
+        invalidateCachedTasks('5-8-stories-kanban');
+        expect(getCachedTasks('5-8-stories-kanban')).toBeUndefined();
+
+        // Sub-story format
+        setCachedTasks('1-5-2-terminate-lock', createMockProgress('1-5-2-terminate-lock', 2, 3));
+        invalidateCachedTasks('1-5-2-terminate-lock');
+        expect(getCachedTasks('1-5-2-terminate-lock')).toBeUndefined();
+
+        // Decimal epic format
+        setCachedTasks('2.5-1-prep-sprint', createMockProgress('2.5-1-prep-sprint', 4, 5));
+        invalidateCachedTasks('2.5-1-prep-sprint');
+        expect(getCachedTasks('2.5-1-prep-sprint')).toBeUndefined();
+      });
+    });
+
+    describe('clearTasksCache', () => {
+      it('removes all cached tasks', () => {
+        setCachedTasks('1-1-a', createMockProgress('1-1-a', 1, 2));
+        setCachedTasks('1-2-b', createMockProgress('1-2-b', 2, 3));
+        setCachedTasks('2-1-c', createMockProgress('2-1-c', 3, 4));
+
+        expect(get(storyTasksCache).size).toBe(3);
+
+        clearTasksCache();
+
+        expect(get(storyTasksCache).size).toBe(0);
+      });
+
+      it('is called by resetSprintStatus', () => {
+        setCachedTasks('1-1-test', createMockProgress('1-1-test', 1, 2));
+        expect(get(storyTasksCache).size).toBe(1);
+
+        resetSprintStatus();
+
+        expect(get(storyTasksCache).size).toBe(0);
+      });
+    });
+
+    describe('file watcher story ID regex patterns', () => {
+      // Test the regex pattern used in StoryBoardContainer.svelte:123
+      // Pattern: /(\d+(?:\.\d+)?-\d+(?:-\d+)?-[^/]+)\.md$/
+      const storyIdRegex = /(\d+(?:\.\d+)?-\d+(?:-\d+)?-[^/]+)\.md$/;
+
+      it('matches standard story file paths', () => {
+        const path = '/project/_bmad-output/implementation-artifacts/5-8-stories-kanban-enhancement.md';
+        const match = path.match(storyIdRegex);
+        expect(match).not.toBeNull();
+        expect(match![1]).toBe('5-8-stories-kanban-enhancement');
+      });
+
+      it('matches sub-story file paths', () => {
+        const path = '/project/_bmad-output/implementation-artifacts/1-5-2-terminate-lock.md';
+        const match = path.match(storyIdRegex);
+        expect(match).not.toBeNull();
+        expect(match![1]).toBe('1-5-2-terminate-lock');
+      });
+
+      it('matches decimal epic story file paths', () => {
+        const path = '/project/_bmad-output/implementation-artifacts/2.5-1-prep-sprint.md';
+        const match = path.match(storyIdRegex);
+        expect(match).not.toBeNull();
+        expect(match![1]).toBe('2.5-1-prep-sprint');
+      });
+
+      it('does not match non-story files', () => {
+        const paths = [
+          '/project/src/lib/components/stories/StoryCard.svelte',
+          '/project/_bmad-output/planning-artifacts/architecture.md',
+          '/project/README.md',
+        ];
+
+        for (const path of paths) {
+          expect(path.match(storyIdRegex)).toBeNull();
+        }
+      });
+
+      it('extracts correct story ID for cache invalidation', () => {
+        // Simulate what StoryBoardContainer does
+        const onArtifactModified = (path: string) => {
+          const match = path.match(storyIdRegex);
+          if (match) {
+            return match[1];
+          }
+          return null;
+        };
+
+        expect(onArtifactModified('5-8-stories-kanban-enhancement.md')).toBe('5-8-stories-kanban-enhancement');
+        expect(onArtifactModified('/full/path/3-2-story-board.md')).toBe('3-2-story-board');
+        expect(onArtifactModified('not-a-story.md')).toBeNull();
+      });
     });
   });
 });
