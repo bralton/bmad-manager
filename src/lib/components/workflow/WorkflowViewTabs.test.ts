@@ -25,11 +25,12 @@ describe('WorkflowViewTabs', () => {
   });
 
   describe('rendering', () => {
-    it('renders two tabs (BMAD Phase and Epic Workflow)', () => {
+    it('renders three tabs (BMAD Phase, Epic Workflow, and Story Workflow)', () => {
       render(WorkflowViewTabs);
 
       expect(screen.getByRole('tab', { name: 'BMAD Phase' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Epic Workflow' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Story Workflow' })).toBeInTheDocument();
     });
 
     it('shows BMAD Phase as active by default', () => {
@@ -82,7 +83,7 @@ describe('WorkflowViewTabs', () => {
       render(WorkflowViewTabs);
 
       expect(screen.getByRole('tablist')).toBeInTheDocument();
-      expect(screen.getAllByRole('tab')).toHaveLength(2);
+      expect(screen.getAllByRole('tab')).toHaveLength(3);
     });
 
     it('has aria-label on tablist', () => {

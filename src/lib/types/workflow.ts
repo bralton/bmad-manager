@@ -87,8 +87,20 @@ export interface Workflow {
  * View mode for the workflow tab.
  * - 'phase': BMAD Phase view showing discovery/planning/solutioning/implementation
  * - 'epic-workflow': Epic Workflow view showing planning/implementation/retro per-epic
+ * - 'story-workflow': Story Workflow view showing backlog/ready/dev/review/done per-story
  */
-export type WorkflowViewMode = 'phase' | 'epic-workflow';
+export type WorkflowViewMode = 'phase' | 'epic-workflow' | 'story-workflow';
+
+/**
+ * Workflow stages for a story.
+ * Maps to the five kanban-style stages a story moves through.
+ */
+export type StoryWorkflowStage = 'backlog' | 'ready' | 'dev' | 'review' | 'done';
+
+/**
+ * Status of a workflow stage.
+ */
+export type StageStatus = 'completed' | 'active' | 'pending';
 
 /**
  * View mode for the dashboard tab (Story 5-1: Tab Restructure).

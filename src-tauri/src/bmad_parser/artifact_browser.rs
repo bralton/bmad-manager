@@ -390,8 +390,11 @@ fn sort_artifacts_by_date(artifacts: &mut [ArtifactInfo]) {
 pub fn get_story_artifact(project_path: &Path, story_id: &str) -> Option<ArtifactInfo> {
     let impl_dir = project_path.join("_bmad-output/implementation-artifacts");
 
-    // Story files follow pattern: {story_id}-*.md
-    let pattern = format!("{}-", story_id);
+    // Story files can follow two patterns:
+    // 1. Exact match: {story_id}.md (e.g., "5-7-story-workflow-view.md")
+    // 2. Prefix match: {story_id}-*.md (for numeric-only IDs like "5-7-*.md")
+    let exact_match = format!("{}.md", story_id);
+    let prefix_pattern = format!("{}-", story_id);
 
     for entry in walkdir::WalkDir::new(&impl_dir)
         .follow_links(true)
@@ -400,7 +403,12 @@ pub fn get_story_artifact(project_path: &Path, story_id: &str) -> Option<Artifac
     {
         let path = entry.path();
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-            if filename.starts_with(&pattern) && filename.ends_with(".md") {
+            // Check exact match first (story_id includes slug)
+            if filename == exact_match {
+                return parse_artifact_file(path);
+            }
+            // Fallback to prefix match (story_id is numeric only)
+            if filename.starts_with(&prefix_pattern) && filename.ends_with(".md") {
                 return parse_artifact_file(path);
             }
         }

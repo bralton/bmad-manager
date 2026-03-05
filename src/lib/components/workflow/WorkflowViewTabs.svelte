@@ -17,6 +17,7 @@
   const tabs: { id: WorkflowViewMode; label: string }[] = [
     { id: 'phase', label: 'BMAD Phase' },
     { id: 'epic-workflow', label: 'Epic Workflow' },
+    { id: 'story-workflow', label: 'Story Workflow' },
   ];
 
   function handleTabClick(tabId: WorkflowViewMode) {

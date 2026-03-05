@@ -3,6 +3,7 @@
   import WorkflowVisualizer from './WorkflowVisualizer.svelte';
   import WorkflowViewTabs from './WorkflowViewTabs.svelte';
   import EpicWorkflow from './EpicWorkflow.svelte';
+  import StoryWorkflow from './StoryWorkflow.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { currentProject } from '$lib/stores/project';
   import {
@@ -154,6 +155,9 @@
     {:else if viewMode === 'epic-workflow'}
       <!-- Epic Workflow view -->
       <EpicWorkflow />
+    {:else if viewMode === 'story-workflow'}
+      <!-- Story Workflow view -->
+      <StoryWorkflow />
     {/if}
   </div>
 {/if}

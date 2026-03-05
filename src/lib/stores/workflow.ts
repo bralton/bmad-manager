@@ -82,7 +82,7 @@ function loadPersistedWorkflowViewMode(): WorkflowViewMode {
     return 'phase';
   }
   const stored = localStorage.getItem(WORKFLOW_VIEW_STORAGE_KEY);
-  if (stored === 'phase' || stored === 'epic-workflow') {
+  if (stored === 'phase' || stored === 'epic-workflow' || stored === 'story-workflow') {
     return stored;
   }
   return 'phase';
@@ -92,6 +92,7 @@ function loadPersistedWorkflowViewMode(): WorkflowViewMode {
  * The currently selected workflow view mode.
  * - 'phase': BMAD Phase view showing discovery/planning/solutioning/implementation
  * - 'epic-workflow': Epic Workflow view showing planning/implementation/retro per-epic
+ * - 'story-workflow': Story Workflow view showing backlog/ready/dev/review/done per-story
  * Persisted to localStorage.
  */
 export const workflowViewMode = writable<WorkflowViewMode>(loadPersistedWorkflowViewMode());
