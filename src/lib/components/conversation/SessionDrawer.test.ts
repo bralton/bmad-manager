@@ -72,6 +72,7 @@ vi.mock('$lib/stores/sessions', async () => {
     currentSessionId,
     currentSession,
     selectSession,
+    updateSessionStatus: vi.fn(),
     // Terminal output history functions (needed for Terminal component)
     appendSessionOutput: vi.fn(),
     getSessionOutputHistory: vi.fn(() => []),

@@ -5,6 +5,7 @@
     currentSession,
     currentSessionId,
     selectSession,
+    updateSessionStatus,
   } from '$lib/stores/sessions';
   import {
     sessionDrawerOpen,
@@ -72,6 +73,8 @@
     terminating = true;
     try {
       await terminateSession(sessionId);
+      // Update status immediately - don't rely on exit event since drawer may close first
+      updateSessionStatus(sessionId, 'interrupted');
       showToast('Session terminated', '\u2713');
       closeSessionDrawer();
     } catch (error) {
@@ -226,9 +229,14 @@
       aria-orientation="horizontal"
       aria-label="Resize drawer"
       tabindex="0"
-      class="h-1.5 bg-gray-700 hover:bg-blue-500 cursor-row-resize flex-shrink-0 transition-colors"
+      class="h-2 bg-gray-600 hover:bg-blue-500 cursor-row-resize flex-shrink-0 transition-colors border-t border-gray-500"
       onmousedown={onResizeStart}
-    ></div>
+    >
+      <!-- Visual grip indicator -->
+      <div class="flex justify-center items-center h-full">
+        <div class="w-10 h-1 rounded-full bg-gray-400"></div>
+      </div>
+    </div>
 
     <!-- Terminate confirmation dialog -->
     {#if showConfirmTerminate}

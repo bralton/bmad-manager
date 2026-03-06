@@ -27,6 +27,7 @@ vi.mock('$lib/stores/sessions', async () => {
     activeSessions,
     sessionsWithNewOutput,
     selectSession,
+    updateSessionStatus: vi.fn(),
   };
 });
 

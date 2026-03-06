@@ -4,6 +4,7 @@
     currentSessionId,
     sessionsWithNewOutput,
     selectSession,
+    updateSessionStatus,
   } from '$lib/stores/sessions';
   import { terminateSession } from '$lib/services/process';
   import {
@@ -71,6 +72,8 @@
     isTerminating = true;
     try {
       await terminateSession(terminatingSessionId);
+      // Update status immediately - don't rely on exit event
+      updateSessionStatus(terminatingSessionId, 'interrupted');
       showToast('Session terminated', '\u2713');
     } catch (error) {
       console.error('Failed to terminate session:', error);
