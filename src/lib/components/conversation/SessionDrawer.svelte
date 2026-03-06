@@ -134,16 +134,6 @@
     class:select-none={isResizing}
     style="height: {drawerHeight}px"
   >
-    <!-- Resize handle at top -->
-    <div
-      role="separator"
-      aria-orientation="horizontal"
-      aria-label="Resize drawer"
-      tabindex="0"
-      class="h-1.5 bg-gray-700 hover:bg-blue-500 cursor-row-resize flex-shrink-0 transition-colors"
-      onmousedown={onResizeStart}
-    ></div>
-
     <!-- Header -->
     <header class="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 flex-shrink-0">
       <div class="flex items-center gap-3">
@@ -229,6 +219,16 @@
         <Terminal sessionId={session.id} visible={drawerOpen} />
       </div>
     {/key}
+
+    <!-- Resize handle at bottom -->
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize drawer"
+      tabindex="0"
+      class="h-1.5 bg-gray-700 hover:bg-blue-500 cursor-row-resize flex-shrink-0 transition-colors"
+      onmousedown={onResizeStart}
+    ></div>
 
     <!-- Terminate confirmation dialog -->
     {#if showConfirmTerminate}

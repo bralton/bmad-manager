@@ -232,10 +232,10 @@ export const sessionDrawerOpen = writable<boolean>(false);
 
 /**
  * Session drawer height in pixels.
- * Defaults to 40% of viewport height, with min/max constraints.
+ * Defaults to 75% of viewport height, with min/max constraints.
  */
 export const sessionDrawerHeight = writable<number>(
-  typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 400
+  typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.75) : 400
 );
 
 /**
