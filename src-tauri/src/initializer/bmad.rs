@@ -1,6 +1,6 @@
 //! BMAD initialization functionality.
 //!
-//! Executes `npx bmad-method install` to set up a BMAD project.
+//! Executes `npx bmad-method@6 install` to set up a BMAD project.
 
 use std::path::Path;
 
@@ -8,7 +8,7 @@ use super::{run_command, InitError, InitOptions};
 
 /// Initializes BMAD in the specified directory using npx.
 ///
-/// Runs: `npx bmad-method install --directory <path> --modules <module> --project-name <name> --user-name <name> --tools claude-code --yes`
+/// Runs: `npx bmad-method@6 install --directory <path> --modules <module> --user-name <name> --tools claude-code --yes`
 ///
 /// Returns an error if:
 /// - The directory already contains a `_bmad` directory
@@ -30,20 +30,17 @@ pub fn init_bmad(path: &Path, options: &InitOptions) -> Result<(), InitError> {
     // bmad-method install CLI options:
     //   --directory <path>       Installation directory
     //   --modules <modules>      Comma-separated list of module IDs (e.g., "core", "bmm")
-    //   --project-name <name>    Name for the project in config
     //   --user-name <name>       Name for agents to use
     //   --tools claude-code      Configure Claude Code integration for skills
     //   --yes                    Accept all defaults and skip prompts
     let module_arg = options.workflow_style.as_cli_arg();
     let args = vec![
-        "bmad-method",
+        "bmad-method@6",
         "install",
         "--directory",
         &path_str,
         "--modules",
         module_arg,
-        "--project-name",
-        &options.project_name,
         "--user-name",
         &options.user_name,
         "--tools",
