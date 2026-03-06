@@ -139,3 +139,45 @@ export function clearNewOutput(sessionId: string) {
     return newSet;
   });
 }
+
+/**
+ * Terminal output history per session.
+ * Stores output chunks to replay when terminal remounts.
+ */
+const sessionOutputHistory = new Map<string, string[]>();
+
+/**
+ * Maximum number of output chunks to store per session.
+ * Prevents unbounded memory growth for long-running sessions.
+ */
+const MAX_OUTPUT_CHUNKS = 10000;
+
+/**
+ * Appends output to a session's history.
+ */
+export function appendSessionOutput(sessionId: string, data: string) {
+  let history = sessionOutputHistory.get(sessionId);
+  if (!history) {
+    history = [];
+    sessionOutputHistory.set(sessionId, history);
+  }
+  history.push(data);
+  // Trim if too large (keep recent output)
+  if (history.length > MAX_OUTPUT_CHUNKS) {
+    history.splice(0, history.length - MAX_OUTPUT_CHUNKS);
+  }
+}
+
+/**
+ * Gets all stored output for a session.
+ */
+export function getSessionOutputHistory(sessionId: string): string[] {
+  return sessionOutputHistory.get(sessionId) || [];
+}
+
+/**
+ * Clears output history for a session (call when session is removed).
+ */
+export function clearSessionOutputHistory(sessionId: string) {
+  sessionOutputHistory.delete(sessionId);
+}

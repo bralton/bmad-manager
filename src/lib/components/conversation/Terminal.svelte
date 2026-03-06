@@ -14,7 +14,12 @@
     sendSessionInput,
     resizeSession,
   } from '$lib/services/process';
-  import { updateSessionStatus, markNewOutput } from '$lib/stores/sessions';
+  import {
+    updateSessionStatus,
+    markNewOutput,
+    appendSessionOutput,
+    getSessionOutputHistory,
+  } from '$lib/stores/sessions';
 
   interface Props {
     sessionId: string;
@@ -71,8 +76,16 @@
     // Try to load WebGL addon for better performance
     tryLoadWebGLAddon(term);
 
+    // Replay any stored output history (for when terminal remounts)
+    const history = getSessionOutputHistory(sessionId);
+    for (const chunk of history) {
+      term.write(chunk);
+    }
+
     // Set up PTY output listener (handles async cleanup properly)
     onSessionOutput(sessionId, (data) => {
+      // Store output for replay if terminal remounts
+      appendSessionOutput(sessionId, data);
       term.write(data);
       markNewOutput(sessionId);
     }).then((unlisten) => {
@@ -99,6 +112,7 @@
       } else {
         exitMessage = `\r\n\x1b[90m--- Session completed ---\x1b[0m\r\n`;
       }
+      appendSessionOutput(sessionId, exitMessage);
       term.write(exitMessage);
 
       onSessionExit?.(status, exitCode);

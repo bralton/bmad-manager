@@ -57,6 +57,8 @@ vi.mock('$lib/services/process', () => ({
 vi.mock('$lib/stores/sessions', () => ({
   updateSessionStatus: vi.fn(),
   markNewOutput: vi.fn(),
+  appendSessionOutput: vi.fn(),
+  getSessionOutputHistory: vi.fn(() => []),
 }));
 
 // Mock ResizeObserver with tracked instances
