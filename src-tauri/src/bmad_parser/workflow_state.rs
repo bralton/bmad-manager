@@ -58,6 +58,9 @@ pub struct WorkflowState {
 
 /// Maps a workflow type string to its corresponding development phase.
 ///
+/// Uses explicit workflow lists ordered by specificity to prevent substring
+/// collisions (e.g., "create-epics-and-stories" should not match "story").
+///
 /// # Arguments
 /// * `workflow_type` - The workflow type from artifact frontmatter
 ///
@@ -66,28 +69,92 @@ pub struct WorkflowState {
 fn workflow_type_to_phase(workflow_type: &str) -> Phase {
     let wt = workflow_type.to_lowercase();
 
-    // Implementation phase (highest priority)
-    if wt.contains("story") || wt.contains("sprint") || wt.contains("implementation") {
-        return Phase::Implementation;
-    }
-
-    // Solutioning phase
-    if wt.contains("tech-spec") || wt.contains("architecture") {
-        return Phase::Solutioning;
-    }
-
-    // Planning phase
-    if wt.contains("prd") || wt.contains("ux") || wt.contains("design") {
-        return Phase::Planning;
-    }
-
-    // Discovery phase
-    if wt.contains("brief") || wt.contains("discovery") {
+    // ==========================================
+    // Phase 1: DISCOVERY
+    // ==========================================
+    // Research workflows, brainstorming, product brief
+    // Must check FIRST to catch research patterns before other phases
+    let discovery_workflows = [
+        "product-brief",
+        "create-product-brief",
+        "brief",
+        "discovery",
+        "brainstorm",
+        "brainstorming",
+        "market-research",
+        "domain-research",
+        "technical-research",
+        "research",
+    ];
+    if discovery_workflows.iter().any(|&w| wt.contains(w)) {
         return Phase::Discovery;
     }
 
-    // Default to planning for unknown types
-    // Log a warning to help identify unmapped workflow types
+    // ==========================================
+    // Phase 2: SOLUTIONING
+    // ==========================================
+    // Architecture, epics-and-stories, implementation-readiness, quick-spec
+    // CRITICAL: Check BEFORE implementation to catch "create-epics-and-stories"
+    // and "check-implementation-readiness" correctly
+    let solutioning_workflows = [
+        "architecture",
+        "create-architecture",
+        "tech-spec",
+        "create-epics-and-stories",
+        "epics-and-stories",
+        "epics",
+        "check-implementation-readiness",
+        "implementation-readiness",
+        "quick-spec", // Anytime workflow mapped to Solutioning per bmad-help.csv
+    ];
+    if solutioning_workflows.iter().any(|&w| wt.contains(w)) {
+        return Phase::Solutioning;
+    }
+
+    // ==========================================
+    // Phase 3: IMPLEMENTATION
+    // ==========================================
+    // Sprint, story (but NOT epics-and-stories - caught by solutioning above),
+    // dev, review, retrospective, quick-dev
+    let implementation_workflows = [
+        "sprint-planning",
+        "sprint-status",
+        "sprint",
+        "create-story",
+        "validate-story",
+        "dev-story",
+        "story", // Generic story workflows; epics-and-stories caught by solutioning
+        "code-review",
+        "retrospective",
+        "qa-automate",
+        "correct-course",
+        "quick-dev", // Anytime workflow mapped to Implementation per bmad-help.csv
+    ];
+    if implementation_workflows.iter().any(|&w| wt.contains(w)) {
+        return Phase::Implementation;
+    }
+
+    // ==========================================
+    // Phase 4: PLANNING
+    // ==========================================
+    // PRD, UX design, general design documents
+    let planning_workflows = [
+        "prd",
+        "create-prd",
+        "validate-prd",
+        "edit-prd",
+        "ux-design",
+        "create-ux-design",
+        "ux",
+        "design",
+    ];
+    if planning_workflows.iter().any(|&w| wt.contains(w)) {
+        return Phase::Planning;
+    }
+
+    // ==========================================
+    // Default: Unknown workflows
+    // ==========================================
     eprintln!(
         "Warning: Unknown workflow type '{}' defaulting to Planning phase",
         workflow_type
@@ -308,6 +375,93 @@ mod tests {
         // Unknown types default to Planning
         assert_eq!(workflow_type_to_phase("unknown"), Phase::Planning);
         assert_eq!(workflow_type_to_phase("random-thing"), Phase::Planning);
+    }
+
+    // ========== Comprehensive workflow_type_to_phase tests (Story 5.11) ==========
+
+    #[test]
+    fn test_discovery_workflows() {
+        // All workflows from bmad-help.csv phase 1-analysis
+        assert_eq!(workflow_type_to_phase("product-brief"), Phase::Discovery);
+        assert_eq!(workflow_type_to_phase("create-product-brief"), Phase::Discovery);
+        assert_eq!(workflow_type_to_phase("brainstorming"), Phase::Discovery);
+        assert_eq!(workflow_type_to_phase("market-research"), Phase::Discovery);
+        assert_eq!(workflow_type_to_phase("domain-research"), Phase::Discovery);
+        assert_eq!(workflow_type_to_phase("technical-research"), Phase::Discovery);
+    }
+
+    #[test]
+    fn test_planning_workflows() {
+        // All workflows from bmad-help.csv phase 2-planning
+        assert_eq!(workflow_type_to_phase("prd"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("create-prd"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("validate-prd"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("edit-prd"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("ux-design"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("create-ux-design"), Phase::Planning);
+    }
+
+    #[test]
+    fn test_solutioning_workflows() {
+        // All workflows from bmad-help.csv phase 3-solutioning
+        assert_eq!(workflow_type_to_phase("architecture"), Phase::Solutioning);
+        assert_eq!(workflow_type_to_phase("create-architecture"), Phase::Solutioning);
+        assert_eq!(workflow_type_to_phase("tech-spec"), Phase::Solutioning);
+        // CRITICAL: These were BROKEN before this fix
+        assert_eq!(workflow_type_to_phase("create-epics-and-stories"), Phase::Solutioning);
+        assert_eq!(workflow_type_to_phase("check-implementation-readiness"), Phase::Solutioning);
+    }
+
+    #[test]
+    fn test_implementation_workflows() {
+        // All workflows from bmad-help.csv phase 4-implementation
+        assert_eq!(workflow_type_to_phase("sprint-planning"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("sprint-status"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("create-story"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("validate-story"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("dev-story"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("qa-automate"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("code-review"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("retrospective"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("correct-course"), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_no_substring_collision_epics_and_stories() {
+        // This was the primary bug: "story" substring matched "epics-and-stories"
+        assert_eq!(workflow_type_to_phase("create-epics-and-stories"), Phase::Solutioning);
+        // But actual story workflows should still be Implementation
+        assert_eq!(workflow_type_to_phase("create-story"), Phase::Implementation);
+        assert_eq!(workflow_type_to_phase("dev-story"), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_no_substring_collision_implementation_readiness() {
+        // This was the secondary bug: "implementation" substring matched incorrectly
+        assert_eq!(workflow_type_to_phase("check-implementation-readiness"), Phase::Solutioning);
+        // But actual implementation workflows should be Implementation
+        assert_eq!(workflow_type_to_phase("sprint-planning"), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_case_insensitive() {
+        assert_eq!(workflow_type_to_phase("CREATE-EPICS-AND-STORIES"), Phase::Solutioning);
+        assert_eq!(workflow_type_to_phase("Market-Research"), Phase::Discovery);
+        assert_eq!(workflow_type_to_phase("SPRINT-PLANNING"), Phase::Implementation);
+    }
+
+    #[test]
+    fn test_anytime_workflows() {
+        // Anytime workflows from bmad-help.csv with explicit phase mappings
+        // quick-spec → Solutioning (not Planning, despite being "anytime")
+        assert_eq!(workflow_type_to_phase("quick-spec"), Phase::Solutioning);
+        // quick-dev → Implementation (not Planning, despite being "anytime")
+        assert_eq!(workflow_type_to_phase("quick-dev"), Phase::Implementation);
+        // These anytime workflows correctly default to Planning
+        assert_eq!(workflow_type_to_phase("document-project"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("generate-project-context"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("party-mode"), Phase::Planning);
+        assert_eq!(workflow_type_to_phase("bmad-help"), Phase::Planning);
     }
 
     // ========== determine_phase tests ==========
