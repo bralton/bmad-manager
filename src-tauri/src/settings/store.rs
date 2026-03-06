@@ -173,6 +173,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    #[allow(dead_code)] // Test helper for future file I/O tests
     fn setup_test_env() -> (TempDir, PathBuf) {
         let temp_dir = TempDir::new().unwrap();
         let settings_dir = temp_dir.path().join(".bmad-manager");

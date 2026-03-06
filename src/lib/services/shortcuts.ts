@@ -3,6 +3,8 @@
  * Handles registration, matching, and display formatting of global shortcuts.
  */
 
+import { isTerminalFocused } from '$lib/utils/keyboard';
+
 /**
  * Modifier keys supported by shortcuts.
  */
@@ -330,9 +332,17 @@ export function clearShortcutActions(): void {
  */
 function handleGlobalKeydown(event: KeyboardEvent): void {
   const target = event.target as Element;
+  const inTerminal = isTerminalFocused();
 
-  // Skip shortcuts when in input fields (except Escape)
-  if (isInputElement(target) && event.key !== 'Escape') {
+  // Let ESC pass through to terminal when terminal is focused
+  // This allows users to interrupt Claude sessions with ESC
+  if (event.key === 'Escape' && inTerminal) {
+    return;
+  }
+
+  // Skip shortcuts when in input fields (except Escape and when in terminal)
+  // Terminal has an internal textarea but we still want global shortcuts like Cmd+K to work
+  if (isInputElement(target) && event.key !== 'Escape' && !inTerminal) {
     return;
   }
 

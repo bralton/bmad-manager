@@ -38,6 +38,8 @@
     closeShortcutsCheatsheet,
     toggleShortcutsCheatsheet,
     toggleSessionDrawer,
+    commandPaletteOpen,
+    closeCommandPalette,
   } from '$lib/stores/ui';
   import {
     registerGlobalShortcuts,
@@ -293,8 +295,8 @@
         closeSettingsModal();
       } else if ($selectedStoryId) {
         selectedStoryId.set(null);
-      } else {
-        // Let command palette handle its own escape
+      } else if ($commandPaletteOpen) {
+        closeCommandPalette();
       }
     });
   }

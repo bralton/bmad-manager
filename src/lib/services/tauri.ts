@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Project, ProjectState, InitOptions } from '$lib/types/project';
 import type { GlobalSettings, DependencyStatus, ProjectSettings, EffectiveSettings } from '$lib/types/settings';
 import type { ArtifactMeta, WorkflowState, Workflow, StoryProgress } from '$lib/types/workflow';
+import type { Task } from '$lib/types/task';
 
 /**
  * API for project-related operations.
@@ -152,4 +153,18 @@ export const workflowApi = {
    */
   getStoryTasks: (storyPath: string) =>
     invoke<StoryProgress | null>('get_story_tasks', { storyPath }),
+};
+
+/**
+ * API for task manifest operations.
+ */
+export const taskApi = {
+  /**
+   * Gets available BMAD tasks from the project's task manifest.
+   * Only returns standalone tasks that users can invoke directly.
+   * @param projectPath - Absolute path to the project directory
+   * @returns Array of task definitions
+   */
+  getTasks: (projectPath: string) =>
+    invoke<Task[]>('get_tasks', { projectPath }),
 };

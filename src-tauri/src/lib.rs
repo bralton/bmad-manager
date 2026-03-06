@@ -44,6 +44,18 @@ fn get_workflows(project_path: String) -> Result<Vec<bmad_parser::Workflow>, Str
         .map_err(|e| e.to_string())
 }
 
+/// Gets available BMAD tasks from the task manifest.
+/// Reads _bmad/_config/task-manifest.csv from the project directory.
+/// Only returns standalone tasks (standalone=true).
+#[tauri::command]
+fn get_tasks(project_path: String) -> Result<Vec<bmad_parser::Task>, String> {
+    let path = PathBuf::from(&project_path);
+    let manifest_path = path.join("_bmad/_config/task-manifest.csv");
+
+    bmad_parser::parse_task_manifest(&manifest_path)
+        .map_err(|e| e.to_string())
+}
+
 /// Gets the sprint status for a project.
 /// Returns epics and stories with their statuses from sprint-status.yaml.
 #[tauri::command]
@@ -414,6 +426,7 @@ pub fn run() {
             get_artifacts,
             get_workflow_state,
             get_workflows,
+            get_tasks,
             get_sprint_status,
             list_project_artifacts,
             get_story_artifact,

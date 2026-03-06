@@ -9,6 +9,7 @@ pub mod story_content;
 pub mod story_tasks;
 mod types;
 mod workflow_state;
+mod tasks;
 mod workflows;
 
 pub use agents::parse_agent_manifest;
@@ -22,6 +23,7 @@ pub use workflow_state::{aggregate_workflow_state, WorkflowState};
 // They may appear unused in Rust but are consumed by the frontend.
 #[allow(unused_imports)]
 pub use sprint_status::{parse_sprint_status, Epic, EpicStatus, RetroStatus, SprintStatus, Story};
+pub use tasks::{parse_task_manifest, Task};
 pub use workflows::{parse_workflow_manifest, Workflow};
 // Artifact browser exports for Tauri commands
 pub use artifact_browser::{

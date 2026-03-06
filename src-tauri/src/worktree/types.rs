@@ -51,6 +51,7 @@ pub enum WorktreeError {
     BranchInUse(String),
 
     #[error("Worktree not found: {0}")]
+    #[allow(dead_code)] // Reserved for future worktree lookup operations
     NotFound(String),
 
     #[error("Worktree has uncommitted changes")]

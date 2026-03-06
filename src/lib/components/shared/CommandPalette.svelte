@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { workflowApi } from '$lib/services/tauri';
+  import { workflowApi, taskApi } from '$lib/services/tauri';
   import { currentProject } from '$lib/stores/project';
   import {
     commandPaletteOpen,
@@ -8,6 +7,10 @@
     setLastExecutedCommand,
   } from '$lib/stores/ui';
   import type { Workflow } from '$lib/types/workflow';
+  import type { Task } from '$lib/types/task';
+
+  // Unified command type that can be either a workflow or a task
+  type Command = (Workflow & { type: 'workflow' }) | (Task & { type: 'task' });
 
   // Props
   let { onExecute }: { onExecute?: (command: string) => void } = $props();
@@ -16,6 +19,7 @@
   let searchQuery = $state('');
   let selectedIndex = $state(0);
   let workflows = $state<Workflow[]>([]);
+  let tasks = $state<Task[]>([]);
   let isLoading = $state(true);
   let loadError = $state<string | null>(null);
   let previouslyFocused = $state<HTMLElement | null>(null);
@@ -26,20 +30,28 @@
   let isOpen = $derived($commandPaletteOpen);
   let project = $derived($currentProject);
 
-  let filteredWorkflows = $derived(
-    workflows.filter((w) => {
+  // Merge workflows and tasks into unified commands array
+  let commands = $derived<Command[]>([
+    ...workflows.map((w) => ({ ...w, type: 'workflow' as const })),
+    ...tasks.map((t) => ({ ...t, type: 'task' as const })),
+  ]);
+
+  let filteredCommands = $derived(
+    commands.filter((c) => {
       const query = searchQuery.toLowerCase();
+      const name = c.type === 'task' ? c.displayName : c.name;
       return (
-        w.name.toLowerCase().includes(query) ||
-        w.description.toLowerCase().includes(query)
+        c.name.toLowerCase().includes(query) ||
+        name.toLowerCase().includes(query) ||
+        c.description.toLowerCase().includes(query)
       );
     })
   );
 
-  // Load workflows when project changes
+  // Load workflows and tasks when project changes
   $effect(() => {
     if (project?.path) {
-      loadWorkflows(project.path);
+      loadCommands(project.path);
     }
   });
 
@@ -57,19 +69,51 @@
 
   // Reset selection when filter changes
   $effect(() => {
-    // Dependency: filteredWorkflows
-    void filteredWorkflows;
+    // Dependency: filteredCommands
+    void filteredCommands;
     selectedIndex = 0;
   });
 
-  async function loadWorkflows(projectPath: string) {
+  /**
+   * Loads workflows and tasks for the command palette.
+   * Uses Promise.allSettled for graceful degradation - if tasks fail to load,
+   * workflows are still displayed (and vice versa).
+   */
+  async function loadCommands(projectPath: string) {
     isLoading = true;
     loadError = null;
     try {
-      workflows = await workflowApi.getWorkflows(projectPath);
+      // Load workflows and tasks in parallel with graceful degradation
+      const [workflowsResult, tasksResult] = await Promise.allSettled([
+        workflowApi.getWorkflows(projectPath),
+        taskApi.getTasks(projectPath),
+      ]);
+
+      // Handle workflows result
+      if (workflowsResult.status === 'fulfilled') {
+        workflows = workflowsResult.value;
+      } else {
+        console.warn('Failed to load workflows:', workflowsResult.reason);
+        workflows = [];
+      }
+
+      // Handle tasks result
+      if (tasksResult.status === 'fulfilled') {
+        tasks = tasksResult.value;
+      } else {
+        console.warn('Failed to load tasks:', tasksResult.reason);
+        tasks = [];
+      }
+
+      // Only show error if BOTH failed
+      if (workflowsResult.status === 'rejected' && tasksResult.status === 'rejected') {
+        loadError = 'Failed to load commands';
+      }
     } catch (e) {
+      // Unexpected error (shouldn't happen with allSettled, but be safe)
       loadError = e instanceof Error ? e.message : String(e);
       workflows = [];
+      tasks = [];
     } finally {
       isLoading = false;
     }
@@ -79,25 +123,25 @@
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        if (filteredWorkflows.length > 0) {
-          selectedIndex = (selectedIndex + 1) % filteredWorkflows.length;
+        if (filteredCommands.length > 0) {
+          selectedIndex = (selectedIndex + 1) % filteredCommands.length;
           scrollSelectedIntoView();
         }
         break;
       case 'ArrowUp':
         e.preventDefault();
-        if (filteredWorkflows.length > 0) {
+        if (filteredCommands.length > 0) {
           selectedIndex =
             selectedIndex <= 0
-              ? filteredWorkflows.length - 1
+              ? filteredCommands.length - 1
               : selectedIndex - 1;
           scrollSelectedIntoView();
         }
         break;
       case 'Enter':
         e.preventDefault();
-        if (filteredWorkflows[selectedIndex]) {
-          executeCommand(filteredWorkflows[selectedIndex]);
+        if (filteredCommands[selectedIndex]) {
+          executeCommand(filteredCommands[selectedIndex]);
         }
         break;
       case 'Escape':
@@ -121,12 +165,18 @@
   }
 
   /**
-   * Formats a workflow as a BMAD skill command name.
-   * Core module: bmad-{name}
-   * BMM module: bmad-bmm-{name}
+   * Formats a command (workflow or task) as a BMAD skill command name.
+   * Tasks: bmad-{name}
+   * Workflows - Core module: bmad-{name}
+   * Workflows - BMM module: bmad-bmm-{name}
    */
-  function formatSkillName(workflow: Workflow): string {
-    const { name, module } = workflow;
+  function formatSkillName(command: Command): string {
+    const { name, module, type } = command;
+    // Tasks always use bmad-{name} format
+    if (type === 'task') {
+      return `bmad-${name}`;
+    }
+    // Workflows use module-based naming
     if (module === 'core') {
       return `bmad-${name}`;
     } else if (module === 'bmm') {
@@ -136,8 +186,24 @@
     return `bmad-${module}-${name}`;
   }
 
-  function executeCommand(workflow: Workflow) {
-    const skillName = formatSkillName(workflow);
+  /**
+   * Gets the display name for a command.
+   * Tasks use displayName, workflows use name.
+   */
+  function getCommandDisplayName(command: Command): string {
+    return command.type === 'task' ? command.displayName : command.name;
+  }
+
+  /**
+   * Gets the badge text for a command.
+   * Tasks show "task", workflows show their module.
+   */
+  function getCommandBadge(command: Command): string {
+    return command.type === 'task' ? 'task' : command.module;
+  }
+
+  function executeCommand(command: Command) {
+    const skillName = formatSkillName(command);
 
     // Store command for story 2-6 to inject
     // Note: Toast is shown by +page.svelte handler based on action taken
@@ -214,14 +280,14 @@
           bind:this={searchInput}
           bind:value={searchQuery}
           type="text"
-          placeholder="Search workflows..."
+          placeholder="Search commands..."
           class="w-full px-4 py-3 bg-transparent text-gray-100 placeholder-gray-500
                  focus:outline-none text-base"
-          aria-label="Search workflows"
+          aria-label="Search commands"
           aria-autocomplete="list"
           aria-controls="command-list"
-          aria-activedescendant={filteredWorkflows[selectedIndex]
-            ? `command-${filteredWorkflows[selectedIndex].name}`
+          aria-activedescendant={filteredCommands[selectedIndex]
+            ? `command-${filteredCommands[selectedIndex].name}`
             : undefined}
         />
         <kbd
@@ -243,19 +309,19 @@
           <div class="px-4 py-8 text-center">
             <p class="text-gray-400">No project loaded</p>
             <p class="text-gray-500 text-sm mt-2">
-              Open a project to see available workflows
+              Open a project to see available commands
             </p>
           </div>
         {:else if isLoading}
           <div class="px-4 py-8 text-center text-gray-500">
-            <span class="animate-pulse">Loading workflows...</span>
+            <span class="animate-pulse">Loading commands...</span>
           </div>
         {:else if loadError}
           <div class="px-4 py-8 text-center">
-            <p class="text-red-400 text-sm">Failed to load workflows</p>
+            <p class="text-red-400 text-sm">Failed to load commands</p>
             <p class="text-gray-500 text-xs mt-1">{loadError}</p>
           </div>
-        {:else if filteredWorkflows.length === 0}
+        {:else if filteredCommands.length === 0}
           <!-- Empty state -->
           <div class="px-4 py-8 text-center">
             <p class="text-gray-400">
@@ -266,15 +332,17 @@
             </p>
           </div>
         {:else}
-          {#each filteredWorkflows as workflow, index (workflow.name)}
+          {#each filteredCommands as command, index (command.type + '-' + command.name)}
             {@const isSelected = index === selectedIndex}
+            {@const badge = getCommandBadge(command)}
+            {@const displayName = getCommandDisplayName(command)}
             <button
-              id={`command-${workflow.name}`}
+              id={`command-${command.name}`}
               data-command-item
               role="option"
               aria-selected={isSelected}
-              aria-label={`${workflow.name}: ${workflow.description}`}
-              onclick={() => executeCommand(workflow)}
+              aria-label={`${displayName}: ${command.description}`}
+              onclick={() => executeCommand(command)}
               onmouseenter={() => (selectedIndex = index)}
               class="w-full text-left px-4 py-3 flex flex-col gap-1 transition-colors
                      {isSelected
@@ -288,14 +356,18 @@
                   <span class="w-3"></span>
                 {/if}
                 <span class="font-mono text-sm">
-                  /{@html highlightMatch(workflow.name, searchQuery)}
+                  /{@html highlightMatch(displayName, searchQuery)}
                 </span>
                 <span
                   class="text-xs px-1.5 py-0.5 rounded {isSelected
-                    ? 'bg-blue-500/50 text-blue-100'
-                    : 'bg-gray-700 text-gray-400'}"
+                    ? command.type === 'task'
+                      ? 'bg-amber-500/50 text-amber-100'
+                      : 'bg-blue-500/50 text-blue-100'
+                    : command.type === 'task'
+                      ? 'bg-amber-800 text-amber-300'
+                      : 'bg-gray-700 text-gray-400'}"
                 >
-                  {workflow.module}
+                  {badge}
                 </span>
               </div>
               <span
@@ -303,7 +375,7 @@
                   ? 'text-blue-100'
                   : 'text-gray-500'}"
               >
-                {@html highlightMatch(workflow.description, searchQuery)}
+                {@html highlightMatch(command.description, searchQuery)}
               </span>
             </button>
           {/each}
@@ -318,7 +390,7 @@
           <span><kbd class="bg-gray-700 px-1.5 py-0.5 rounded">↑</kbd> <kbd class="bg-gray-700 px-1.5 py-0.5 rounded">↓</kbd> navigate</span>
           <span><kbd class="bg-gray-700 px-1.5 py-0.5 rounded">↵</kbd> select</span>
         </div>
-        <span class="text-gray-600">{filteredWorkflows.length} commands</span>
+        <span class="text-gray-600">{filteredCommands.length} commands</span>
       </div>
     </div>
   </div>

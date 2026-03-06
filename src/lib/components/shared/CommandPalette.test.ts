@@ -17,16 +17,21 @@ import {
 } from '$lib/stores/ui';
 import type { Project } from '$lib/types/project';
 import type { Workflow } from '$lib/types/workflow';
+import type { Task } from '$lib/types/task';
 
-// Mock workflowApi
+// Mock workflowApi and taskApi
 vi.mock('$lib/services/tauri', () => ({
   workflowApi: {
     getWorkflows: vi.fn(),
   },
+  taskApi: {
+    getTasks: vi.fn(),
+  },
 }));
 
-import { workflowApi } from '$lib/services/tauri';
+import { workflowApi, taskApi } from '$lib/services/tauri';
 const mockGetWorkflows = workflowApi.getWorkflows as ReturnType<typeof vi.fn>;
+const mockGetTasks = taskApi.getTasks as ReturnType<typeof vi.fn>;
 
 describe('CommandPalette', () => {
   const mockWorkflows: Workflow[] = [
@@ -50,6 +55,25 @@ describe('CommandPalette', () => {
     },
   ];
 
+  const mockTasks: Task[] = [
+    {
+      name: 'editorial-review-prose',
+      displayName: 'Editorial Review - Prose',
+      description: 'Clinical copy-editor for prose clarity',
+      module: 'core',
+      path: '/bmad/tasks/editorial-review-prose.xml',
+      standalone: true,
+    },
+    {
+      name: 'shard-doc',
+      displayName: 'Shard Document',
+      description: 'Split large documents into sections',
+      module: 'core',
+      path: '/bmad/tasks/shard-doc.xml',
+      standalone: true,
+    },
+  ];
+
   const mockProject: Project = {
     name: 'Test Project',
     path: '/test/project',
@@ -64,6 +88,7 @@ describe('CommandPalette', () => {
     currentProject.set(null);
     clearLastExecutedCommand();
     mockGetWorkflows.mockResolvedValue(mockWorkflows);
+    mockGetTasks.mockResolvedValue(mockTasks);
   });
 
   afterEach(() => {
@@ -128,7 +153,7 @@ describe('CommandPalette', () => {
 
       render(CommandPalette);
 
-      expect(screen.getByText('Loading workflows...')).toBeInTheDocument();
+      expect(screen.getByText('Loading commands...')).toBeInTheDocument();
 
       // Resolve
       resolvePromise!(mockWorkflows);
@@ -147,7 +172,7 @@ describe('CommandPalette', () => {
         expect(screen.getByText('/create-prd')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
       await fireEvent.input(searchInput, { target: { value: 'story' } });
 
       // create-story and dev-story should remain (check by aria-label since text is split by highlight marks)
@@ -168,7 +193,7 @@ describe('CommandPalette', () => {
         expect(screen.getByText('/create-prd')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
       await fireEvent.input(searchInput, { target: { value: 'product' } });
 
       // Only create-prd matches "product requirements document"
@@ -238,7 +263,9 @@ describe('CommandPalette', () => {
 
       const dialog = screen.getByRole('dialog');
 
-      // Move down 3 times (to wrap around with 3 items)
+      // Move down 5 times (to wrap around with 3 workflows + 2 tasks = 5 items)
+      await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
+      await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
       await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
       await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
       await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
@@ -264,8 +291,8 @@ describe('CommandPalette', () => {
       // Press ArrowUp from first item
       await fireEvent.keyDown(dialog, { key: 'ArrowUp' });
 
-      // Last item should be selected (dev-story)
-      const lastItem = screen.getByRole('option', { name: /dev-story/i });
+      // Last item should be selected (Shard Document - the last task in the list)
+      const lastItem = screen.getByRole('option', { name: /Shard Document/i });
       expect(lastItem).toHaveAttribute('aria-selected', 'true');
     });
 
@@ -320,7 +347,7 @@ describe('CommandPalette', () => {
       });
 
       const dialog = screen.getByRole('dialog');
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
 
       // Press Tab
       await fireEvent.keyDown(dialog, { key: 'Tab' });
@@ -439,7 +466,7 @@ describe('CommandPalette', () => {
 
       // Wait for focus (setTimeout in component)
       await waitFor(() => {
-        const searchInput = screen.getByPlaceholderText('Search workflows...');
+        const searchInput = screen.getByPlaceholderText('Search commands...');
         expect(document.activeElement).toBe(searchInput);
       });
     });
@@ -457,7 +484,7 @@ describe('CommandPalette', () => {
         expect(screen.getByText('/create-prd')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
       await fireEvent.input(searchInput, { target: { value: 'prd' } });
 
       // Should have a mark element highlighting "prd"
@@ -501,8 +528,9 @@ describe('CommandPalette', () => {
       expect(screen.getByText('No project loaded')).toBeInTheDocument();
     });
 
-    // P2: Test error state
-    it('shows error when workflow loading fails', async () => {
+    // P2: Test graceful degradation - tasks shown when workflows fail
+    // (Error only shown when BOTH fail - see task integration tests)
+    it('shows tasks when workflow loading fails (graceful degradation)', async () => {
       mockGetWorkflows.mockRejectedValue(new Error('Network error'));
 
       openCommandPalette();
@@ -510,10 +538,17 @@ describe('CommandPalette', () => {
 
       render(CommandPalette);
 
+      // Should show tasks even though workflows failed
       await waitFor(() => {
-        expect(screen.getByText('Failed to load workflows')).toBeInTheDocument();
-        expect(screen.getByText('Network error')).toBeInTheDocument();
+        expect(screen.getByText('/Editorial Review - Prose')).toBeInTheDocument();
+        expect(screen.getByText('/Shard Document')).toBeInTheDocument();
       });
+
+      // Should show 2 commands (tasks only)
+      expect(screen.getByText('2 commands')).toBeInTheDocument();
+
+      // No error should be shown since tasks loaded successfully
+      expect(screen.queryByText('Failed to load commands')).not.toBeInTheDocument();
     });
 
     // P2: Test empty search results
@@ -527,7 +562,7 @@ describe('CommandPalette', () => {
         expect(screen.getByText('/create-prd')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
       await fireEvent.input(searchInput, { target: { value: 'zzzzzzz' } });
 
       expect(screen.getByText(/No commands match/)).toBeInTheDocument();
@@ -540,8 +575,9 @@ describe('CommandPalette', () => {
 
       render(CommandPalette);
 
+      // 3 workflows + 2 tasks = 5 commands
       await waitFor(() => {
-        expect(screen.getByText('3 commands')).toBeInTheDocument();
+        expect(screen.getByText('5 commands')).toBeInTheDocument();
       });
     });
 
@@ -552,13 +588,15 @@ describe('CommandPalette', () => {
 
       render(CommandPalette);
 
+      // 3 workflows + 2 tasks = 5 commands initially
       await waitFor(() => {
-        expect(screen.getByText('3 commands')).toBeInTheDocument();
+        expect(screen.getByText('5 commands')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
       await fireEvent.input(searchInput, { target: { value: 'story' } });
 
+      // Only create-story and dev-story workflows match "story"
       expect(screen.getByText('2 commands')).toBeInTheDocument();
     });
   });
@@ -584,7 +622,7 @@ describe('CommandPalette', () => {
       expect(secondItem).toHaveAttribute('aria-selected', 'true');
 
       // Search to change filter
-      const searchInput = screen.getByPlaceholderText('Search workflows...');
+      const searchInput = screen.getByPlaceholderText('Search commands...');
       await fireEvent.input(searchInput, { target: { value: 'dev' } });
 
       // First filtered item should be selected
@@ -616,6 +654,235 @@ describe('CommandPalette', () => {
       await fireEvent.keyDown(dialog, { key: 'ArrowDown' });
 
       expect(scrollIntoViewSpy).toHaveBeenCalledWith({ block: 'nearest' });
+    });
+  });
+
+  // =========================================================================
+  // Story 5-12: Task Integration Tests
+  // =========================================================================
+  describe('task integration', () => {
+    // P0: Test tasks are loaded alongside workflows (AC #1-5)
+    it('loads and displays tasks alongside workflows', async () => {
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      // Wait for workflows and tasks to load
+      await waitFor(() => {
+        // Workflows should be displayed
+        expect(screen.getByText('/create-prd')).toBeInTheDocument();
+        // Tasks should be displayed with their displayName
+        expect(screen.getByText('/Editorial Review - Prose')).toBeInTheDocument();
+        expect(screen.getByText('/Shard Document')).toBeInTheDocument();
+      });
+    });
+
+    // P0: Test task badge displays correctly (AC #6)
+    it('displays task badge for tasks', async () => {
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      await waitFor(() => {
+        expect(screen.getByText('/Editorial Review - Prose')).toBeInTheDocument();
+      });
+
+      // Tasks should have 'task' badge
+      const taskBadges = screen.getAllByText('task');
+      expect(taskBadges.length).toBeGreaterThan(0);
+    });
+
+    // P0: Test workflow badges remain unchanged (AC #7)
+    it('displays workflow module badges for workflows', async () => {
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      await waitFor(() => {
+        expect(screen.getByText('/create-prd')).toBeInTheDocument();
+      });
+
+      // Workflows should have 'bmm' badge
+      const bmmBadges = screen.getAllByText('bmm');
+      expect(bmmBadges.length).toBe(3); // 3 bmm workflows
+    });
+
+    // P0: Test task search filtering (AC #1-4)
+    it('filters tasks by name and description', async () => {
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      await waitFor(() => {
+        expect(screen.getByText('/Editorial Review - Prose')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search commands...');
+      await fireEvent.input(searchInput, { target: { value: 'editorial' } });
+
+      // Editorial Review - Prose should remain
+      expect(screen.getByRole('option', { name: /Editorial Review - Prose/i })).toBeInTheDocument();
+      // Other tasks and workflows should be filtered out
+      expect(screen.queryByText('/create-prd')).not.toBeInTheDocument();
+      expect(screen.queryByText('/Shard Document')).not.toBeInTheDocument();
+    });
+
+    // P0: Test task execution generates correct skill name (AC #8)
+    it('executes task with bmad-{name} skill format', async () => {
+      const onExecute = vi.fn();
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette, { props: { onExecute } });
+
+      await waitFor(() => {
+        expect(screen.getByText('/Editorial Review - Prose')).toBeInTheDocument();
+      });
+
+      // Click on the task
+      const taskOption = screen.getByRole('option', { name: /Editorial Review - Prose/i });
+      await fireEvent.click(taskOption);
+
+      // Tasks should use bmad-{name} format (not bmad-core-{name})
+      expect(onExecute).toHaveBeenCalledWith('bmad-editorial-review-prose');
+      expect(get(lastExecutedCommand)).toBe('bmad-editorial-review-prose');
+    });
+
+    // P1: Test mixed search results show both tasks and workflows (AC #5)
+    it('shows mixed results when search matches both tasks and workflows', async () => {
+      // Add a workflow with "review" in the name for mixed results
+      const workflowsWithReview: Workflow[] = [
+        ...mockWorkflows,
+        {
+          name: 'code-review',
+          description: 'Review code changes',
+          module: 'bmm',
+          path: '/bmad/workflows/code-review',
+        },
+      ];
+      mockGetWorkflows.mockResolvedValue(workflowsWithReview);
+
+      // Add a task with "review" in the name
+      const tasksWithReview: Task[] = [
+        ...mockTasks,
+        {
+          name: 'review-adversarial-general',
+          displayName: 'Adversarial Review (General)',
+          description: 'Cynically review content',
+          module: 'core',
+          path: '/bmad/tasks/review-adversarial.xml',
+          standalone: true,
+        },
+      ];
+      mockGetTasks.mockResolvedValue(tasksWithReview);
+
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      await waitFor(() => {
+        expect(screen.getByText('/code-review')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search commands...');
+      await fireEvent.input(searchInput, { target: { value: 'review' } });
+
+      // Both workflow and task should appear
+      expect(screen.getByRole('option', { name: /code-review/i })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Adversarial Review/i })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Editorial Review/i })).toBeInTheDocument();
+
+      // Verify badge types
+      expect(screen.getAllByText('task').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('bmm').length).toBeGreaterThanOrEqual(1);
+    });
+
+    // P1: Test graceful degradation - workflows display even when task loading fails
+    it('still displays workflows when task loading fails', async () => {
+      mockGetTasks.mockRejectedValue(new Error('Task loading failed'));
+
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      // Workflows should still display even though tasks failed
+      await waitFor(() => {
+        expect(screen.getByText('/create-prd')).toBeInTheDocument();
+        expect(screen.getByText('/create-story')).toBeInTheDocument();
+        expect(screen.getByText('/dev-story')).toBeInTheDocument();
+      });
+
+      // Should show 3 commands (workflows only, no tasks)
+      expect(screen.getByText('3 commands')).toBeInTheDocument();
+
+      // No error should be shown since workflows loaded successfully
+      expect(screen.queryByText('Failed to load commands')).not.toBeInTheDocument();
+    });
+
+    // P1: Test graceful degradation - tasks display even when workflow loading fails
+    it('still displays tasks when workflow loading fails', async () => {
+      mockGetWorkflows.mockRejectedValue(new Error('Workflow loading failed'));
+
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      // Tasks should still display even though workflows failed
+      await waitFor(() => {
+        expect(screen.getByText('/Editorial Review - Prose')).toBeInTheDocument();
+        expect(screen.getByText('/Shard Document')).toBeInTheDocument();
+      });
+
+      // Should show 2 commands (tasks only, no workflows)
+      expect(screen.getByText('2 commands')).toBeInTheDocument();
+
+      // No error should be shown since tasks loaded successfully
+      expect(screen.queryByText('Failed to load commands')).not.toBeInTheDocument();
+    });
+
+    // P1: Test error state only when BOTH fail
+    it('shows error only when both workflows and tasks fail to load', async () => {
+      mockGetWorkflows.mockRejectedValue(new Error('Workflow error'));
+      mockGetTasks.mockRejectedValue(new Error('Task error'));
+
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      // Should show error state since BOTH failed
+      // Use getAllByText since the error message appears in both header and detail
+      await waitFor(() => {
+        const errorMessages = screen.getAllByText('Failed to load commands');
+        expect(errorMessages.length).toBeGreaterThan(0);
+      });
+
+      // Verify no commands are displayed
+      expect(screen.getByText('0 commands')).toBeInTheDocument();
+    });
+
+    // P1: Test empty tasks array works correctly
+    it('works correctly when no tasks are available', async () => {
+      mockGetTasks.mockResolvedValue([]);
+
+      openCommandPalette();
+      currentProject.set(mockProject);
+
+      render(CommandPalette);
+
+      await waitFor(() => {
+        expect(screen.getByText('/create-prd')).toBeInTheDocument();
+      });
+
+      // Should show 3 commands (workflows only)
+      expect(screen.getByText('3 commands')).toBeInTheDocument();
     });
   });
 });
