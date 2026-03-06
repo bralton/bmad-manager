@@ -67,6 +67,7 @@ describe('StoryTasksView', () => {
         status: 'in-progress',
       },
     ],
+    bugs: [],
   };
 
   beforeEach(() => {

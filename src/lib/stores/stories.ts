@@ -40,6 +40,27 @@ export const selectedStoryId = writable<string | null>(null);
  */
 export function setSelectedStoryId(storyId: string | null): void {
   selectedStoryId.set(storyId);
+  // Clear bug selection when selecting a story
+  if (storyId) {
+    selectedBugId.set(null);
+  }
+}
+
+/**
+ * Currently selected bug ID for the detail panel, or null if none selected.
+ */
+export const selectedBugId = writable<string | null>(null);
+
+/**
+ * Sets the currently selected bug ID.
+ * @param bugId - The bug ID to select, or null to clear selection
+ */
+export function setSelectedBugId(bugId: string | null): void {
+  selectedBugId.set(bugId);
+  // Clear story selection when selecting a bug
+  if (bugId) {
+    selectedStoryId.set(null);
+  }
 }
 
 /**
@@ -132,6 +153,7 @@ export function resetSprintStatus(): void {
   sprintStatusLoading.set(false);
   sprintStatusError.set(null);
   selectedStoryId.set(null);
+  selectedBugId.set(null);
   epicTitles.set(new Map());
   // Clear tasks cache on reset (added for Story 5-8)
   storyTasksCache.set(new Map());

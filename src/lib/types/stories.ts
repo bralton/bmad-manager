@@ -51,6 +51,21 @@ export interface Story {
 }
 
 /**
+ * Represents a bug entry with its status and metadata.
+ * Must match Rust Bug struct (camelCase serialization).
+ */
+export interface Bug {
+  /** Full bug ID (e.g., "bug-123-description") */
+  id: string;
+  /** Bug number extracted from ID (e.g., 123) */
+  bugNumber: number;
+  /** URL-friendly slug (e.g., "description") */
+  slug: string;
+  /** Current status of the bug (same values as StoryStatus) */
+  status: StoryStatus;
+}
+
+/**
  * Aggregated sprint status containing all epics and stories.
  */
 export interface SprintStatus {
@@ -62,6 +77,8 @@ export interface SprintStatus {
   epics: Epic[];
   /** List of stories sorted by epic_id then story_number */
   stories: Story[];
+  /** List of bugs sorted by bug_number (empty array if no bugs) */
+  bugs: Bug[];
 }
 
 /**
@@ -128,6 +145,37 @@ export interface StoryContent {
   tasks: string | null;
   /** Developer notes (from "## Dev Notes" section) */
   devNotes: string | null;
+  /** Whether the file was successfully parsed */
+  parsed: boolean;
+  /** Error message if parsing failed */
+  error: string | null;
+}
+
+/**
+ * Parsed content from a bug file.
+ * Used by the Bug Detail Panel to display bug content.
+ */
+export interface BugContent {
+  /** Bug ID from frontmatter (e.g., "BUG-001") */
+  bugId: string | null;
+  /** Bug title from frontmatter */
+  title: string | null;
+  /** Severity level (low, medium, high, critical) */
+  severity: string | null;
+  /** Priority (P1, P2, P3, etc.) */
+  priority: string | null;
+  /** Current status */
+  status: string | null;
+  /** Who reported the bug */
+  reportedBy: string | null;
+  /** When the bug was reported */
+  reportedDate: string | null;
+  /** Related story IDs */
+  relatedStories: string[] | null;
+  /** The summary section content */
+  summary: string | null;
+  /** Full markdown body after frontmatter */
+  body: string | null;
   /** Whether the file was successfully parsed */
   parsed: boolean;
   /** Error message if parsing failed */

@@ -3,6 +3,7 @@
 mod agents;
 mod artifact_browser;
 mod artifacts;
+pub mod bug_content;
 pub mod epic_parser;
 mod sprint_status;
 pub mod story_content;
@@ -22,7 +23,7 @@ pub use workflow_state::{aggregate_workflow_state, WorkflowState};
 // Sprint status types are exported for Tauri IPC serialization to TypeScript.
 // They may appear unused in Rust but are consumed by the frontend.
 #[allow(unused_imports)]
-pub use sprint_status::{parse_sprint_status, Epic, EpicStatus, RetroStatus, SprintStatus, Story};
+pub use sprint_status::{parse_sprint_status, Bug, Epic, EpicStatus, RetroStatus, SprintStatus, Story};
 pub use tasks::{parse_task_manifest, Task};
 pub use workflows::{parse_workflow_manifest, Workflow};
 // Artifact browser exports for Tauri commands

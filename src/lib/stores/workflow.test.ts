@@ -259,6 +259,7 @@ describe('workflow store', () => {
           { id: '2-2-test', epicId: '2', storyNumber: 2, slug: 'test', status: 'in-progress' },
           { id: '2-3-test', epicId: '2', storyNumber: 3, slug: 'test', status: 'backlog' },
         ],
+        bugs: [],
       };
 
       sprintStatus.set(mockStatus);
@@ -306,6 +307,7 @@ describe('workflow store', () => {
         project: 'test',
         epics: [{ id: '3', status: 'backlog' }],
         stories: [],
+        bugs: [],
       };
 
       sprintStatus.set(mockStatus);
@@ -321,6 +323,7 @@ describe('workflow store', () => {
         project: 'test',
         epics: [{ id: '1', status: 'backlog' }],
         stories: [],
+        bugs: [],
       };
 
       sprintStatus.set(mockStatus);
@@ -359,6 +362,7 @@ describe('workflow store', () => {
           { id: '1-7', epicId: '1', storyNumber: 7, slug: 'g', status: 'done' },
           { id: '1-8', epicId: '1', storyNumber: 8, slug: 'h', status: 'done' },
         ],
+        bugs: [],
       };
 
       sprintStatus.set(mockStatus);
@@ -383,6 +387,7 @@ describe('workflow store', () => {
         project: 'test',
         epics: [],
         stories: [],
+        bugs: [],
       };
 
       sprintStatus.set(mockStatus);

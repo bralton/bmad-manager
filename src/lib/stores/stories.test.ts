@@ -92,6 +92,7 @@ describe('stories store', () => {
           status: 'ready-for-dev',
         },
       ],
+      bugs: [],
     };
 
     it('sets loading state to true when called', async () => {
@@ -192,6 +193,7 @@ describe('stories store', () => {
           { id: '2-1-c', epicId: '2', storyNumber: 1, slug: 'c', status: 'ready-for-dev' },
           { id: '3-1-d', epicId: '3', storyNumber: 1, slug: 'd', status: 'backlog' },
         ],
+        bugs: [],
       };
 
       mockGetSprintStatus.mockResolvedValue(mockStatus);
@@ -224,6 +226,7 @@ describe('stories store', () => {
           { id: '2-1-c', epicId: '2', storyNumber: 1, slug: 'c', status: 'ready-for-dev' },
           { id: '2.5-1-d', epicId: '2.5', storyNumber: 1, slug: 'd', status: 'backlog' },
         ],
+        bugs: [],
       };
 
       mockGetSprintStatus.mockResolvedValue(mockStatus);
@@ -244,6 +247,7 @@ describe('stories store', () => {
         project: 'test',
         epics: [],
         stories: [],
+        bugs: [],
       };
 
       mockGetSprintStatus.mockResolvedValue(mockStatus);

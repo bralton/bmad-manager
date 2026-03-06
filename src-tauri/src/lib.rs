@@ -124,6 +124,14 @@ fn get_story_content(story_path: String) -> bmad_parser::story_content::StoryCon
     bmad_parser::story_content::get_story_content(&path)
 }
 
+/// Gets bug content from a bug file.
+/// Parses YAML frontmatter and markdown body for display in the Bug Detail Panel.
+#[tauri::command]
+fn get_bug_content(bug_path: String) -> bmad_parser::bug_content::BugContent {
+    let path = PathBuf::from(&bug_path);
+    bmad_parser::bug_content::get_bug_content(&path)
+}
+
 // Conflict detection Tauri commands
 
 /// Gets conflict warnings for active stories in a project.
@@ -436,6 +444,7 @@ pub fn run() {
             get_epic_titles,
             get_story_tasks,
             get_story_content,
+            get_bug_content,
             open_in_ide,
             open_in_terminal,
             get_story_conflicts,

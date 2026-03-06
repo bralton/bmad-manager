@@ -109,6 +109,7 @@ const mockSprintData: SprintStatus = {
     { id: '4', status: 'done' },
   ],
   stories: mockStories,
+  bugs: [],
 };
 
 const mockArtifact: ArtifactInfo = {
@@ -451,6 +452,7 @@ describe('StoryWorkflow', () => {
             status: 'done',
           },
         ],
+        bugs: [],
       };
       mockSprintStatus.set(doneData);
       const { container } = render(StoryWorkflow);

@@ -97,6 +97,7 @@ describe('StoryBoardContainer', () => {
       { id: '1-1-scaffold', epicId: '1', storyNumber: 1, slug: 'scaffold', status: 'done' },
       { id: '2-1-parser', epicId: '2', storyNumber: 1, slug: 'parser', status: 'ready-for-dev' },
     ],
+    bugs: [],
   };
 
   describe('loading state', () => {
@@ -152,6 +153,7 @@ describe('StoryBoardContainer', () => {
         project: 'test',
         epics: [],
         stories: [],
+        bugs: [],
       });
 
       render(StoryBoardContainer);
@@ -166,6 +168,7 @@ describe('StoryBoardContainer', () => {
         project: 'test',
         epics: [],
         stories: [],
+        bugs: [],
       });
 
       render(StoryBoardContainer);

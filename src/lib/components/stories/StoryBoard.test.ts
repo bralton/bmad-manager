@@ -31,6 +31,7 @@ describe('StoryBoard', () => {
       { id: '2-1-parser', epicId: '2', storyNumber: 1, slug: 'parser', status: 'ready-for-dev' },
       { id: '2-2-visualizer', epicId: '2', storyNumber: 2, slug: 'visualizer', status: 'backlog' },
     ],
+    bugs: [],
     ...overrides,
   });
 
@@ -136,6 +137,59 @@ describe('StoryBoard', () => {
 
       // All columns should show (0)
       expect(screen.getAllByText('(0)').length).toBe(5);
+    });
+  });
+
+  describe('bugs row (Story 5-15)', () => {
+    it('renders BugsRow when bugs exist', () => {
+      const status = createStatus({
+        bugs: [
+          { id: 'bug-1-crash', bugNumber: 1, slug: 'crash', status: 'backlog' },
+          { id: 'bug-2-freeze', bugNumber: 2, slug: 'freeze', status: 'in-progress' },
+        ],
+      });
+      render(StoryBoard, { props: { status } });
+
+      // BugsRow header should be visible
+      expect(screen.getByText('Bugs')).toBeInTheDocument();
+      expect(screen.getByText('2 bugs')).toBeInTheDocument();
+    });
+
+    it('does not render BugsRow when no bugs exist', () => {
+      const status = createStatus({
+        bugs: [],
+      });
+      render(StoryBoard, { props: { status } });
+
+      expect(screen.queryByText('Bugs')).not.toBeInTheDocument();
+    });
+
+    it('includes bugs in column counts (AC #7)', () => {
+      const status = createStatus({
+        stories: [
+          { id: '1-1-scaffold', epicId: '1', storyNumber: 1, slug: 'scaffold', status: 'backlog' },
+        ],
+        bugs: [
+          { id: 'bug-1-crash', bugNumber: 1, slug: 'crash', status: 'backlog' },
+          { id: 'bug-2-freeze', bugNumber: 2, slug: 'freeze', status: 'backlog' },
+        ],
+      });
+      render(StoryBoard, { props: { status } });
+
+      // Backlog should show 3 (1 story + 2 bugs)
+      expect(screen.getByText('(3)')).toBeInTheDocument();
+    });
+
+    it('renders bug cards with distinct styling', () => {
+      const status = createStatus({
+        bugs: [
+          { id: 'bug-1-terminal-crash', bugNumber: 1, slug: 'terminal-crash', status: 'backlog' },
+        ],
+      });
+      render(StoryBoard, { props: { status } });
+
+      expect(screen.getByText('BUG-1')).toBeInTheDocument();
+      expect(screen.getByText('Terminal Crash')).toBeInTheDocument();
     });
   });
 });

@@ -1,5 +1,6 @@
 <script lang="ts">
   import EpicRow from './EpicRow.svelte';
+  import BugsRow from './BugsRow.svelte';
   import { KANBAN_COLUMNS, type SprintStatus, type Story } from '$lib/types/stories';
 
   let { status }: { status: SprintStatus } = $props();
@@ -18,10 +19,15 @@
     return result;
   });
 
-  // Get count of stories per column
+  // Get count of stories AND bugs per column (AC #7)
   function getColumnCount(statusValue: string): number {
-    return status.stories.filter((s) => s.status === statusValue).length;
+    const storyCount = status.stories.filter((s) => s.status === statusValue).length;
+    const bugCount = status.bugs.filter((b) => b.status === statusValue).length;
+    return storyCount + bugCount;
   }
+
+  // Check if bugs exist to render BugsRow (AC #8)
+  let hasBugs = $derived(status.bugs && status.bugs.length > 0);
 </script>
 
 <div class="p-4">
@@ -46,5 +52,10 @@
         <EpicRow {epic} stories={epicStories} />
       {/if}
     {/each}
+
+    <!-- Bugs Row (AC #6, #8) - only shown if bugs exist -->
+    {#if hasBugs}
+      <BugsRow bugs={status.bugs} />
+    {/if}
   </div>
 </div>

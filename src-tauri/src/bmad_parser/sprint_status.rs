@@ -32,6 +32,20 @@ pub enum RetroStatus {
     Done,
 }
 
+/// Represents a bug entry with its status and metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bug {
+    /// Full bug ID (e.g., "bug-123-description")
+    pub id: String,
+    /// Bug number extracted from ID (e.g., 123)
+    pub bug_number: u32,
+    /// URL-friendly slug (e.g., "description")
+    pub slug: String,
+    /// Current status of the bug (reuses StoryStatus)
+    pub status: StoryStatus,
+}
+
 impl Default for RetroStatus {
     fn default() -> Self {
         RetroStatus::Optional
@@ -84,6 +98,9 @@ pub struct SprintStatus {
     pub epics: Vec<Epic>,
     /// List of stories sorted by epic_id then story_number
     pub stories: Vec<Story>,
+    /// List of bugs sorted by bug_number
+    #[serde(default)]
+    pub bugs: Vec<Bug>,
 }
 
 /// Raw structure for initial YAML parsing before transformation.
@@ -124,6 +141,7 @@ pub fn parse_sprint_status_content(content: &str) -> SprintStatus {
 
     let mut epics: Vec<Epic> = Vec::new();
     let mut stories: Vec<Story> = Vec::new();
+    let mut bugs: Vec<Bug> = Vec::new();
     let mut retros: HashMap<String, RetroStatus> = HashMap::new();
 
     // First pass: collect all entries and categorize
@@ -132,6 +150,7 @@ pub fn parse_sprint_status_content(content: &str) -> SprintStatus {
             match entry {
                 StatusEntry::Epic(epic) => epics.push(epic),
                 StatusEntry::Story(story) => stories.push(story),
+                StatusEntry::Bug(bug) => bugs.push(bug),
                 StatusEntry::Retro(epic_id, status) => {
                     retros.insert(epic_id, status);
                 }
@@ -168,11 +187,15 @@ pub fn parse_sprint_status_content(content: &str) -> SprintStatus {
         a.sub_story_number.cmp(&b.sub_story_number)
     });
 
+    // Sort bugs by bug_number (ascending)
+    bugs.sort_by_key(|b| b.bug_number);
+
     SprintStatus {
         generated: raw.generated.unwrap_or_default(),
         project: raw.project.unwrap_or_default(),
         epics,
         stories,
+        bugs,
     }
 }
 
@@ -180,6 +203,7 @@ pub fn parse_sprint_status_content(content: &str) -> SprintStatus {
 enum StatusEntry {
     Epic(Epic),
     Story(Story),
+    Bug(Bug),
     Retro(String, RetroStatus),
 }
 
@@ -211,6 +235,29 @@ fn parse_status_entry(key: &str, value: &str) -> Option<StatusEntry> {
             status,
             retro_status: None,
         }));
+    }
+
+    // Bug: "bug-123-description"
+    if key.starts_with("bug-") {
+        let rest = key.strip_prefix("bug-")?;
+        let parts: Vec<&str> = rest.splitn(2, '-').collect();
+        if parts.len() >= 2 {
+            let bug_number: u32 = parts[0].parse().ok()?;
+            let slug = parts[1].to_string();
+            let status = match value {
+                "ready-for-dev" => StoryStatus::ReadyForDev,
+                "in-progress" => StoryStatus::InProgress,
+                "review" => StoryStatus::Review,
+                "done" => StoryStatus::Done,
+                _ => StoryStatus::Backlog,
+            };
+            return Some(StatusEntry::Bug(Bug {
+                id: key.to_string(),
+                bug_number,
+                slug,
+                status,
+            }));
+        }
     }
 
     // Story: "1-2-user-auth" (epic-story-slug) or "1-5-2-terminate" (epic-story-substory-slug)
@@ -465,6 +512,129 @@ development_status:
         let result = parse_sprint_status(Path::new("/nonexistent/path"));
         assert!(result.epics.is_empty());
         assert!(result.stories.is_empty());
+        assert!(result.bugs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_bug_entries() {
+        let content = r#"
+development_status:
+  bug-1-terminal-crash: backlog
+  bug-2-session-freeze: in-progress
+  bug-3-worktree-error: done
+"#;
+        let result = parse_sprint_status_content(content);
+        assert_eq!(result.bugs.len(), 3);
+
+        let bug1 = result.bugs.iter().find(|b| b.id == "bug-1-terminal-crash").unwrap();
+        assert_eq!(bug1.bug_number, 1);
+        assert_eq!(bug1.slug, "terminal-crash");
+        assert_eq!(bug1.status, StoryStatus::Backlog);
+
+        let bug2 = result.bugs.iter().find(|b| b.id == "bug-2-session-freeze").unwrap();
+        assert_eq!(bug2.bug_number, 2);
+        assert_eq!(bug2.slug, "session-freeze");
+        assert_eq!(bug2.status, StoryStatus::InProgress);
+
+        let bug3 = result.bugs.iter().find(|b| b.id == "bug-3-worktree-error").unwrap();
+        assert_eq!(bug3.bug_number, 3);
+        assert_eq!(bug3.slug, "worktree-error");
+        assert_eq!(bug3.status, StoryStatus::Done);
+    }
+
+    #[test]
+    fn test_bug_sorting_by_number() {
+        let content = r#"
+development_status:
+  bug-3-third: backlog
+  bug-1-first: backlog
+  bug-2-second: backlog
+"#;
+        let result = parse_sprint_status_content(content);
+
+        assert_eq!(result.bugs[0].bug_number, 1);
+        assert_eq!(result.bugs[1].bug_number, 2);
+        assert_eq!(result.bugs[2].bug_number, 3);
+    }
+
+    #[test]
+    fn test_bugs_not_mixed_with_stories() {
+        let content = r#"
+development_status:
+  1-1-scaffold: done
+  bug-1-crash: backlog
+  1-2-detection: in-progress
+  bug-2-freeze: done
+"#;
+        let result = parse_sprint_status_content(content);
+
+        // Stories and bugs should be in separate arrays
+        assert_eq!(result.stories.len(), 2);
+        assert_eq!(result.bugs.len(), 2);
+
+        // Stories should only contain stories
+        assert!(result.stories.iter().all(|s| !s.id.starts_with("bug-")));
+
+        // Bugs should only contain bugs
+        assert!(result.bugs.iter().all(|b| b.id.starts_with("bug-")));
+    }
+
+    #[test]
+    fn test_bug_slug_with_hyphens() {
+        let content = r#"
+development_status:
+  bug-123-session-freeze-on-resize: in-progress
+"#;
+        let result = parse_sprint_status_content(content);
+        assert_eq!(result.bugs.len(), 1);
+
+        let bug = &result.bugs[0];
+        assert_eq!(bug.id, "bug-123-session-freeze-on-resize");
+        assert_eq!(bug.bug_number, 123);
+        assert_eq!(bug.slug, "session-freeze-on-resize");
+    }
+
+    #[test]
+    fn test_empty_bugs_array_when_no_bugs() {
+        let content = r#"
+development_status:
+  epic-1: done
+  1-1-scaffold: done
+"#;
+        let result = parse_sprint_status_content(content);
+
+        // Bugs should be empty array, not undefined
+        assert!(result.bugs.is_empty());
+        assert_eq!(result.bugs.len(), 0);
+    }
+
+    #[test]
+    fn test_bug_all_statuses() {
+        let content = r#"
+development_status:
+  bug-1-backlog: backlog
+  bug-2-ready: ready-for-dev
+  bug-3-progress: in-progress
+  bug-4-review: review
+  bug-5-done: done
+"#;
+        let result = parse_sprint_status_content(content);
+        assert_eq!(result.bugs.len(), 5);
+
+        let bug1 = result.bugs.iter().find(|b| b.bug_number == 1).unwrap();
+        assert_eq!(bug1.status, StoryStatus::Backlog);
+
+        let bug2 = result.bugs.iter().find(|b| b.bug_number == 2).unwrap();
+        assert_eq!(bug2.status, StoryStatus::ReadyForDev);
+
+        let bug3 = result.bugs.iter().find(|b| b.bug_number == 3).unwrap();
+        assert_eq!(bug3.status, StoryStatus::InProgress);
+
+        let bug4 = result.bugs.iter().find(|b| b.bug_number == 4).unwrap();
+        assert_eq!(bug4.status, StoryStatus::Review);
+
+        let bug5 = result.bugs.iter().find(|b| b.bug_number == 5).unwrap();
+        assert_eq!(bug5.status, StoryStatus::Done);
     }
 
     #[test]

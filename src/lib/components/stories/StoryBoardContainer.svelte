@@ -3,6 +3,7 @@
   import { get } from 'svelte/store';
   import StoryBoard from './StoryBoard.svelte';
   import StoryDetailPanel from './StoryDetailPanel.svelte';
+  import BugDetailPanel from './BugDetailPanel.svelte';
   import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
   import { currentProject } from '$lib/stores/project';
@@ -11,6 +12,7 @@
     sprintStatusLoading,
     sprintStatusError,
     selectedStoryId,
+    selectedBugId,
     refreshSprintStatus,
     refreshEpicTitles,
     resetSprintStatus,
@@ -21,7 +23,7 @@
   import { showToast, type ToastAction } from '$lib/stores/ui';
   import { setupEventListeners, type EventHandlers } from '$lib/services/events';
   import type { UnlistenFn } from '@tauri-apps/api/event';
-  import type { Story } from '$lib/types/stories';
+  import type { Story, Bug } from '$lib/types/stories';
   import type { Worktree } from '$lib/types/worktree';
 
   // Reactive store access
@@ -30,6 +32,7 @@
   let loading = $derived($sprintStatusLoading);
   let error = $derived($sprintStatusError);
   let selectedId = $derived($selectedStoryId);
+  let selectedBugIdValue = $derived($selectedBugId);
 
   // Track the last project path to detect changes
   let lastProjectPath: string | null = null;
@@ -227,6 +230,10 @@
     selectedStoryId.set(null);
   }
 
+  function handleCloseBugDetail() {
+    selectedBugId.set(null);
+  }
+
   // Get the selected story from the current status
   let selectedStory = $derived(
     status && selectedId ? status.stories.find((s) => s.id === selectedId) : null
@@ -235,6 +242,11 @@
   // Get epic for selected story
   let selectedEpic = $derived(
     status && selectedStory ? status.epics.find((e) => e.id === selectedStory.epicId) : null
+  );
+
+  // Get the selected bug from the current status
+  let selectedBug = $derived(
+    status && selectedBugIdValue ? status.bugs.find((b) => b.id === selectedBugIdValue) : null
   );
 </script>
 
@@ -266,12 +278,20 @@
       <StoryBoard {status} />
     </div>
 
-    <!-- Detail panel overlay -->
+    <!-- Story detail panel overlay -->
     {#if selectedStory}
       <StoryDetailPanel
         story={selectedStory}
         epic={selectedEpic}
         onClose={handleCloseDetail}
+      />
+    {/if}
+
+    <!-- Bug detail panel overlay -->
+    {#if selectedBug}
+      <BugDetailPanel
+        bug={selectedBug}
+        onClose={handleCloseBugDetail}
       />
     {/if}
   {:else}

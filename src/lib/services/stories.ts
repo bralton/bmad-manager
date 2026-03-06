@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { SprintStatus, StoryContent } from '$lib/types/stories';
+import type { SprintStatus, StoryContent, BugContent } from '$lib/types/stories';
 import type { StoryProgress } from '$lib/types/workflow';
 
 /**
@@ -46,4 +46,13 @@ export const storyApi = {
    */
   getStoryContent: (storyPath: string) =>
     invoke<StoryContent>('get_story_content', { storyPath }),
+
+  /**
+   * Gets bug content from a bug file.
+   * Parses YAML frontmatter and markdown body into structured sections.
+   * @param bugPath - Absolute path to the bug markdown file
+   * @returns BugContent with parsed sections
+   */
+  getBugContent: (bugPath: string) =>
+    invoke<BugContent>('get_bug_content', { bugPath }),
 };
