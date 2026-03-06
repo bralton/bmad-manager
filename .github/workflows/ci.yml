@@ -63,3 +63,64 @@ jobs:
       - name: Clippy lints
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
+
+  # E2E Tests using WebdriverIO + tauri-driver
+  # Runs on Linux only (macOS lacks WKWebView driver support)
+  e2e:
+    runs-on: ubuntu-22.04
+    needs: test # Only run E2E if unit tests pass
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Cache tauri-driver
+        id: cache-tauri-driver
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/tauri-driver
+          key: tauri-driver-${{ runner.os }}-v1
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            webkit2gtk-driver \
+            xvfb
+
+      - name: Install tauri-driver
+        if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
+        run: cargo install tauri-driver --locked
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build debug binary for E2E tests
+        run: npm run build:e2e-app
+
+      - name: Run E2E tests
+        run: xvfb-run npm run test:e2e
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: e2e-results/
+          retention-days: 7

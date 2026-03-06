@@ -45,10 +45,18 @@
   function getArtifactsForPhase(phase: Phase): ArtifactMeta[] {
     // Map workflow types to phases (excluding 'not-started' which has no artifacts)
     const phaseWorkflowTypes: Record<string, string[]> = {
-      'discovery': ['product-brief'],
-      'planning': ['prd'],
-      'solutioning': ['ux-design', 'tech-spec', 'architecture'],
-      'implementation': ['create-story', 'dev-story', 'sprint-planning'],
+      'discovery': ['product-brief', 'create-product-brief'],
+      'planning': ['prd', 'create-prd', 'ux-design', 'create-ux-design'],
+      'solutioning': [
+        'tech-spec',
+        'architecture',
+        'create-architecture',
+        'create-epics-and-stories',
+        'epics-and-stories',
+        'epics',
+        'check-implementation-readiness',
+      ],
+      'implementation': ['create-story', 'dev-story', 'sprint-planning', 'retrospective'],
     };
 
     const workflowTypes = phaseWorkflowTypes[phase] || [];
