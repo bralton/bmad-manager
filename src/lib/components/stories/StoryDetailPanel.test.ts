@@ -7,7 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import StoryDetailPanel from './StoryDetailPanel.svelte';
 import { worktrees, worktreeCreating, resetWorktrees, setWorktreeCreating } from '$lib/stores/worktrees';
-import type { Story, Epic } from '$lib/types/stories';
+import type { Story, Epic, StoryContent } from '$lib/types/stories';
+import { storyApi } from '$lib/services/stories';
+import { artifactBrowserApi } from '$lib/services/artifacts';
 
 // Mock the worktrees service
 vi.mock('$lib/services/worktrees', () => ({
@@ -16,6 +18,20 @@ vi.mock('$lib/services/worktrees', () => ({
     listWorktrees: vi.fn(),
   },
   parseWorktreeError: vi.fn((error: unknown) => 'Failed to create worktree'),
+}));
+
+// Mock the stories service for story content
+vi.mock('$lib/services/stories', () => ({
+  storyApi: {
+    getStoryContent: vi.fn(),
+  },
+}));
+
+// Mock the artifacts service
+vi.mock('$lib/services/artifacts', () => ({
+  artifactBrowserApi: {
+    getStoryArtifact: vi.fn(),
+  },
 }));
 
 // Mock the project store
@@ -333,6 +349,155 @@ describe('StoryDetailPanel', () => {
       });
 
       expect(screen.getByText('Creating worktree...')).toBeInTheDocument();
+    });
+  });
+
+  describe('story content (Story 5-13)', () => {
+    const mockStoryContent: StoryContent = {
+      story: 'As a user, I want to view story details.',
+      acceptanceCriteria: '1. Content is displayed\n2. Tasks are shown',
+      tasks: '- [ ] Task 1\n- [x] Task 2',
+      devNotes: '### Implementation\nUse existing patterns.',
+      parsed: true,
+      error: null,
+    };
+
+    beforeEach(() => {
+      vi.mocked(artifactBrowserApi.getStoryArtifact).mockResolvedValue({
+        path: '/test/project/_bmad-output/implementation-artifacts/3-2-story.md',
+        title: '3-2-story',
+        category: 'story',
+        modifiedAt: '2026-03-05T00:00:00Z',
+      });
+      vi.mocked(storyApi.getStoryContent).mockResolvedValue(mockStoryContent);
+    });
+
+    it('shows loading state while fetching content', async () => {
+      // Create a promise that won't resolve immediately
+      let resolvePromise: () => void;
+      vi.mocked(artifactBrowserApi.getStoryArtifact).mockReturnValue(
+        new Promise((resolve) => {
+          resolvePromise = () => resolve({
+            path: '/test/project/_bmad-output/implementation-artifacts/3-2-story.md',
+            title: '3-2-story',
+            category: 'story',
+            modifiedAt: '2026-03-05T00:00:00Z',
+          });
+        })
+      );
+
+      const story = createStory({ status: 'in-progress' });
+      const { container } = render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Should show loading spinner
+      expect(screen.getByText('Loading story content...')).toBeInTheDocument();
+    });
+
+    it('shows backlog message for backlog stories (AC5)', () => {
+      const story = createStory({ status: 'backlog' });
+      render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      expect(screen.getByText('Story file not yet created')).toBeInTheDocument();
+    });
+
+    it('shows error state with retry button (AC6)', async () => {
+      vi.mocked(artifactBrowserApi.getStoryArtifact).mockRejectedValue(
+        new Error('Network error')
+      );
+
+      const story = createStory({ status: 'in-progress' });
+      render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Wait for error state
+      await vi.waitFor(() => {
+        expect(screen.getByText(/Network error|Failed to load/)).toBeInTheDocument();
+      });
+
+      // Should show retry button
+      expect(screen.getByText('Retry')).toBeInTheDocument();
+    });
+
+    it('shows error when story file not found (AC6)', async () => {
+      vi.mocked(artifactBrowserApi.getStoryArtifact).mockResolvedValue(null);
+
+      const story = createStory({ status: 'in-progress' });
+      render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Wait for error state
+      await vi.waitFor(() => {
+        expect(screen.getByText('Story file not found')).toBeInTheDocument();
+      });
+    });
+
+    it('displays story content sections when loaded (AC1)', async () => {
+      const story = createStory({ status: 'in-progress' });
+      render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Wait for content to load
+      await vi.waitFor(() => {
+        expect(screen.getByText('Story')).toBeInTheDocument();
+      });
+
+      // All sections should be present
+      expect(screen.getByText('Acceptance Criteria')).toBeInTheDocument();
+      expect(screen.getByText('Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Dev Notes')).toBeInTheDocument();
+    });
+
+    it('does not fetch content for backlog stories', async () => {
+      const story = createStory({ status: 'backlog' });
+      render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Wait a tick for any async operations
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Should not have called the API
+      expect(artifactBrowserApi.getStoryArtifact).not.toHaveBeenCalled();
+      expect(storyApi.getStoryContent).not.toHaveBeenCalled();
+    });
+
+    it('clears previous content when loading new story', async () => {
+      // First render with content that loads
+      const story = createStory({ status: 'in-progress' });
+      const { rerender } = render(StoryDetailPanel, {
+        props: { story, epic: createEpic(), onClose: onCloseMock },
+      });
+
+      // Wait for content to load
+      await vi.waitFor(() => {
+        expect(screen.getByText('Story')).toBeInTheDocument();
+      });
+
+      // Verify content is displayed
+      expect(screen.getByText('As a user, I want to view story details.')).toBeInTheDocument();
+
+      // Now simulate loading a different story by re-rendering
+      // The loading state should clear the previous content
+      vi.mocked(artifactBrowserApi.getStoryArtifact).mockReturnValue(
+        new Promise(() => {}) // Never resolves - simulates slow load
+      );
+
+      const newStory = createStory({ id: '4-1-different-story', status: 'in-progress' });
+      rerender({ story: newStory, epic: createEpic(), onClose: onCloseMock });
+
+      // Previous content should be cleared (not visible during loading)
+      // Note: Due to how Svelte re-renders work, the component may show loading state
+      await vi.waitFor(() => {
+        // Loading indicator should appear
+        expect(screen.getByText('Loading story content...')).toBeInTheDocument();
+      });
     });
   });
 });

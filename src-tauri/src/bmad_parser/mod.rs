@@ -5,6 +5,7 @@ mod artifact_browser;
 mod artifacts;
 pub mod epic_parser;
 mod sprint_status;
+pub mod story_content;
 pub mod story_tasks;
 mod types;
 mod workflow_state;

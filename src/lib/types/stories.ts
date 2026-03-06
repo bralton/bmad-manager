@@ -114,3 +114,22 @@ export const KANBAN_COLUMNS: readonly KanbanColumn[] = [
     textColor: 'text-green-400',
   },
 ] as const;
+
+/**
+ * Parsed content sections from a story file.
+ * Used by the Story Detail Panel to display story content.
+ */
+export interface StoryContent {
+  /** The user story text (from "## Story" section) */
+  story: string | null;
+  /** Acceptance criteria (from "## Acceptance Criteria" section) */
+  acceptanceCriteria: string | null;
+  /** Tasks and subtasks (from "## Tasks / Subtasks" section) */
+  tasks: string | null;
+  /** Developer notes (from "## Dev Notes" section) */
+  devNotes: string | null;
+  /** Whether the file was successfully parsed */
+  parsed: boolean;
+  /** Error message if parsing failed */
+  error: string | null;
+}

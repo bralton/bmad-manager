@@ -44,6 +44,7 @@
     setShortcutAction,
     clearShortcutActions,
   } from '$lib/services/shortcuts';
+  import { selectedStoryId } from '$lib/stores/stories';
   import {
     spawnClaudeSession,
     sendSessionInput,
@@ -278,11 +279,13 @@
     setShortcutAction('settings', openSettingsModal);
     setShortcutAction('shortcuts-help', toggleShortcutsCheatsheet);
     setShortcutAction('close-dialog', () => {
-      // Close in order of priority: cheatsheet, settings, command palette
+      // Close in order of priority: cheatsheet, settings, story panel, command palette
       if ($shortcutsCheatsheetOpen) {
         closeShortcutsCheatsheet();
       } else if ($settingsModalOpen) {
         closeSettingsModal();
+      } else if ($selectedStoryId) {
+        selectedStoryId.set(null);
       } else {
         // Let command palette handle its own escape
       }

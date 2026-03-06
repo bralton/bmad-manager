@@ -104,6 +104,14 @@ fn get_story_tasks(story_path: String) -> Option<bmad_parser::story_tasks::Story
     bmad_parser::story_tasks::parse_story_tasks(&path)
 }
 
+/// Gets story content sections from a story file.
+/// Parses markdown into structured sections (Story, ACs, Tasks, Dev Notes).
+#[tauri::command]
+fn get_story_content(story_path: String) -> bmad_parser::story_content::StoryContent {
+    let path = PathBuf::from(&story_path);
+    bmad_parser::story_content::get_story_content(&path)
+}
+
 // Conflict detection Tauri commands
 
 /// Gets conflict warnings for active stories in a project.
@@ -414,6 +422,7 @@ pub fn run() {
             read_artifact_file,
             get_epic_titles,
             get_story_tasks,
+            get_story_content,
             open_in_ide,
             open_in_terminal,
             get_story_conflicts,

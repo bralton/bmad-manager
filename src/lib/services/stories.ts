@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { SprintStatus } from '$lib/types/stories';
+import type { SprintStatus, StoryContent } from '$lib/types/stories';
 import type { StoryProgress } from '$lib/types/workflow';
 
 /**
@@ -37,4 +37,13 @@ export const storyApi = {
    */
   getStoryTasks: (storyPath: string) =>
     invoke<StoryProgress | null>('get_story_tasks', { storyPath }),
+
+  /**
+   * Gets story content sections from a story file.
+   * Parses markdown into structured sections (Story, ACs, Tasks, Dev Notes).
+   * @param storyPath - Absolute path to the story markdown file
+   * @returns StoryContent with parsed sections
+   */
+  getStoryContent: (storyPath: string) =>
+    invoke<StoryContent>('get_story_content', { storyPath }),
 };

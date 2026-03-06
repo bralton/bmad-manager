@@ -1,17 +1,20 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { KANBAN_COLUMNS, type Story, type Epic } from '$lib/types/stories';
+  import { KANBAN_COLUMNS, type Story, type Epic, type StoryContent } from '$lib/types/stories';
   import { currentProject } from '$lib/stores/project';
   import { worktreesByStory, worktreeCreating, setWorktreeCreating, refreshWorktrees } from '$lib/stores/worktrees';
   import { conflictSummaries } from '$lib/stores/conflicts';
   import { showSuccessToast, showErrorToast } from '$lib/stores/ui';
   import { worktreeApi, parseWorktreeError } from '$lib/services/worktrees';
   import { openWorktreeInNewWindow } from '$lib/services/windows';
+  import { artifactBrowserApi } from '$lib/services/artifacts';
+  import { storyApi } from '$lib/services/stories';
   import WorktreeCleanupDialog from './WorktreeCleanupDialog.svelte';
   import MergeDialog from './MergeDialog.svelte';
   import ConflictWarningBanner from '$lib/components/conflicts/ConflictWarningBanner.svelte';
   import EmptyState from '$lib/components/shared/EmptyState.svelte';
+  import StoryContentSection from './StoryContentSection.svelte';
 
   let {
     story,
@@ -40,6 +43,78 @@
   // Dialog states
   let showCleanupDialog = $state(false);
   let showMergeDialog = $state(false);
+
+  // Story content state (Story 5-13: Detail Panel Content)
+  let storyContent = $state<StoryContent | null>(null);
+  let contentLoading = $state(false);
+  let contentError = $state<string | null>(null);
+  let contentVisible = $state(false); // For fade-in transition (AC4)
+
+  // Track current fetch to prevent race conditions (non-reactive, just a counter)
+  let currentFetchId = 0;
+
+  // Check if this is a backlog story (no file exists yet)
+  let isBacklog = $derived(story.status === 'backlog');
+
+  // Fetch story content when panel opens for non-backlog stories
+  $effect(() => {
+    if (!isBacklog && story.id) {
+      fetchStoryContent();
+    }
+  });
+
+  async function fetchStoryContent() {
+    const project = get(currentProject);
+    if (!project?.path) return;
+
+    // Increment fetch ID to track this request
+    const fetchId = ++currentFetchId;
+
+    contentLoading = true;
+    contentError = null;
+    storyContent = null; // Clear previous content to prevent stale data flash
+    contentVisible = false;
+
+    try {
+      // Get the artifact to find the file path
+      const artifact = await artifactBrowserApi.getStoryArtifact(project.path, story.id);
+
+      // Check if this request is still current (prevents race condition)
+      if (fetchId !== currentFetchId) return;
+
+      if (artifact?.path) {
+        const content = await storyApi.getStoryContent(artifact.path);
+
+        // Check again after second async call
+        if (fetchId !== currentFetchId) return;
+
+        if (content.error) {
+          contentError = content.error;
+        } else {
+          storyContent = content;
+          // Trigger fade-in after content is set (AC4: smooth transition)
+          requestAnimationFrame(() => {
+            contentVisible = true;
+          });
+        }
+      } else {
+        contentError = 'Story file not found';
+      }
+    } catch (error) {
+      // Only set error if this request is still current
+      if (fetchId !== currentFetchId) return;
+      contentError = error instanceof Error ? error.message : 'Failed to load story content';
+    } finally {
+      // Only clear loading if this request is still current
+      if (fetchId === currentFetchId) {
+        contentLoading = false;
+      }
+    }
+  }
+
+  function handleRetryContent() {
+    fetchStoryContent();
+  }
 
   // Highlight cleanup button when story is done (AC #6)
   let isDone = $derived(story.status === 'done');
@@ -279,6 +354,77 @@
       <div>
         <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Full ID</h3>
         <p class="text-white font-mono text-sm">{story.id}</p>
+      </div>
+
+      <!-- Story Content Section (Story 5-13) -->
+      <div class="pt-4 border-t border-gray-700">
+        {#if isBacklog}
+          <!-- Backlog story - no file yet (AC5) -->
+          <EmptyState
+            icon="document"
+            title="Story file not yet created"
+            description="This story is in the backlog. A story file will be created when development begins."
+          />
+        {:else if contentLoading}
+          <!-- Loading state (AC4) -->
+          <div class="flex items-center justify-center py-8">
+            <svg
+              class="animate-spin h-6 w-6 text-indigo-400"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span class="ml-2 text-gray-400 text-sm">Loading story content...</span>
+          </div>
+        {:else if contentError}
+          <!-- Error state with retry (AC6) -->
+          <div class="text-center py-6">
+            <svg class="w-8 h-8 text-red-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p class="text-red-400 text-sm mb-3">{contentError}</p>
+            <button
+              onclick={handleRetryContent}
+              class="px-3 py-1.5 text-sm rounded bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        {:else if storyContent}
+          <!-- Story content sections (AC1, AC2, AC3) with fade-in (AC4) -->
+          <div
+            class="space-y-3 transition-opacity duration-200"
+            class:opacity-0={!contentVisible}
+            class:opacity-100={contentVisible}
+          >
+            {#if storyContent.story}
+              <StoryContentSection title="Story" content={storyContent.story} defaultExpanded={true} />
+            {/if}
+            {#if storyContent.acceptanceCriteria}
+              <StoryContentSection title="Acceptance Criteria" content={storyContent.acceptanceCriteria} defaultExpanded={true} />
+            {/if}
+            {#if storyContent.tasks}
+              <StoryContentSection title="Tasks" content={storyContent.tasks} defaultExpanded={true} showTasks={true} />
+            {/if}
+            {#if storyContent.devNotes}
+              <StoryContentSection title="Dev Notes" content={storyContent.devNotes} defaultExpanded={false} />
+            {/if}
+          </div>
+        {/if}
       </div>
 
       <!-- Worktree Section -->
