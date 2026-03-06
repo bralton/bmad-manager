@@ -335,7 +335,8 @@ pub fn parse_artifact_file(path: &Path) -> Option<ArtifactInfo> {
 
 /// Lists all artifacts in a project, organized by category.
 ///
-/// Scans both `_bmad-output/planning-artifacts` and `_bmad-output/implementation-artifacts`.
+/// Scans `_bmad-output/planning-artifacts`, `_bmad-output/implementation-artifacts`,
+/// and `_bmad-output/design`.
 pub fn list_artifacts(project_path: &Path) -> ArtifactGroups {
     let mut groups = ArtifactGroups::default();
     let output_base = project_path.join("_bmad-output");
@@ -350,6 +351,12 @@ pub fn list_artifacts(project_path: &Path) -> ArtifactGroups {
     let impl_dir = output_base.join("implementation-artifacts");
     if impl_dir.exists() {
         scan_directory_for_artifacts(&impl_dir, &mut groups);
+    }
+
+    // Scan design folder
+    let design_dir = output_base.join("design");
+    if design_dir.exists() {
+        scan_directory_for_artifacts(&design_dir, &mut groups);
     }
 
     // Sort each category by modified_at descending (newest first)
@@ -979,5 +986,184 @@ mod tests {
         assert!(!json.contains("\"epic_id\""));
         assert!(!json.contains("\"story_id\""));
         assert!(!json.contains("\"modified_at\""));
+    }
+
+    // ========== Design folder scanning tests (Story 5-10) ==========
+
+    #[test]
+    fn test_list_artifacts_with_design_folder() {
+        let dir = tempdir().unwrap();
+
+        // Create implementation-artifacts with a story
+        let impl_dir = dir.path().join("_bmad-output/implementation-artifacts");
+        fs::create_dir_all(&impl_dir).unwrap();
+        fs::write(
+            impl_dir.join("1-1-test.md"),
+            "# Story 1.1: Test\n\nStatus: done",
+        )
+        .unwrap();
+
+        // Create design folder with a design doc
+        let design_dir = dir.path().join("_bmad-output/design");
+        fs::create_dir_all(&design_dir).unwrap();
+        fs::write(
+            design_dir.join("epic-5-ux-design.md"),
+            "# Epic 5 UX Design\n\nDesign document content",
+        )
+        .unwrap();
+
+        let groups = list_artifacts(dir.path());
+
+        // Should find story from implementation-artifacts
+        assert_eq!(groups.stories.len(), 1);
+        // Should find design doc from design folder
+        assert_eq!(groups.design.len(), 1);
+        assert_eq!(groups.design[0].title, "Epic 5 UX Design");
+        // Total count should include both
+        assert_eq!(groups.total_count(), 2);
+    }
+
+    #[test]
+    fn test_list_artifacts_missing_design_folder_graceful() {
+        let dir = tempdir().unwrap();
+
+        // Create only implementation-artifacts (no design folder)
+        let impl_dir = dir.path().join("_bmad-output/implementation-artifacts");
+        fs::create_dir_all(&impl_dir).unwrap();
+        fs::write(
+            impl_dir.join("1-1-test.md"),
+            "# Story 1.1: Test\n\nStatus: done",
+        )
+        .unwrap();
+
+        // Should not error when design folder doesn't exist
+        let groups = list_artifacts(dir.path());
+
+        // Should still find the story
+        assert_eq!(groups.stories.len(), 1);
+        // Design should be empty (graceful handling)
+        assert_eq!(groups.design.len(), 0);
+    }
+
+    #[test]
+    fn test_list_artifacts_all_three_folders() {
+        let dir = tempdir().unwrap();
+
+        // Create planning-artifacts
+        let planning_dir = dir.path().join("_bmad-output/planning-artifacts");
+        fs::create_dir_all(&planning_dir).unwrap();
+        fs::write(
+            planning_dir.join("prd-bmad-manager.md"),
+            "# PRD: BMAD Manager\n\nProduct requirements",
+        )
+        .unwrap();
+
+        // Create implementation-artifacts
+        let impl_dir = dir.path().join("_bmad-output/implementation-artifacts");
+        fs::create_dir_all(&impl_dir).unwrap();
+        fs::write(
+            impl_dir.join("epic-1-foundation.md"),
+            "# Epic 1: Foundation\n\nEpic content",
+        )
+        .unwrap();
+
+        // Create design folder
+        let design_dir = dir.path().join("_bmad-output/design");
+        fs::create_dir_all(&design_dir).unwrap();
+        fs::write(
+            design_dir.join("epic-4-tech-reference.md"),
+            "# Tech Reference\n\nTechnical documentation",
+        )
+        .unwrap();
+
+        let groups = list_artifacts(dir.path());
+
+        // Should find artifacts from all three folders
+        assert_eq!(groups.planning.len(), 1);
+        assert_eq!(groups.epics.len(), 1);
+        assert_eq!(groups.design.len(), 1);
+        assert_eq!(groups.total_count(), 3);
+    }
+
+    #[test]
+    fn test_design_folder_artifacts_properly_categorized() {
+        let dir = tempdir().unwrap();
+
+        // Create design folder with multiple artifact types
+        let design_dir = dir.path().join("_bmad-output/design");
+        fs::create_dir_all(&design_dir).unwrap();
+
+        // UX design doc -> Design category (with Status frontmatter for AC3)
+        fs::write(
+            design_dir.join("epic-5-ux-design.md"),
+            "# Epic 5 UX Design\n\nStatus: draft\n\nUX content",
+        )
+        .unwrap();
+
+        // Tech reference -> Design category
+        fs::write(
+            design_dir.join("epic-3-tech-reference.md"),
+            "# Tech Reference\n\nStatus: approved\n\nTech content",
+        )
+        .unwrap();
+
+        // Planning doc in design folder -> Planning category
+        fs::write(
+            design_dir.join("architecture-overview.md"),
+            "# Architecture Overview\n\nArchitecture content",
+        )
+        .unwrap();
+
+        let groups = list_artifacts(dir.path());
+
+        // Two design docs
+        assert_eq!(groups.design.len(), 2);
+        // One planning doc
+        assert_eq!(groups.planning.len(), 1);
+        assert_eq!(groups.total_count(), 3);
+
+        // AC3: Verify frontmatter parsing works same as planning artifacts
+        // Design docs should have their Status field parsed
+        let ux_design = groups.design.iter().find(|a| a.title == "Epic 5 UX Design");
+        assert!(ux_design.is_some(), "UX design doc should be found");
+        assert_eq!(ux_design.unwrap().status, Some("draft".to_string()));
+
+        let tech_ref = groups.design.iter().find(|a| a.title == "Tech Reference");
+        assert!(tech_ref.is_some(), "Tech reference doc should be found");
+        assert_eq!(tech_ref.unwrap().status, Some("approved".to_string()));
+    }
+
+    #[test]
+    fn test_design_folder_nested_directories() {
+        let dir = tempdir().unwrap();
+
+        // Create nested design folder structure
+        let nested_dir = dir.path().join("_bmad-output/design/wireframes");
+        fs::create_dir_all(&nested_dir).unwrap();
+
+        // Doc in root design folder
+        let design_dir = dir.path().join("_bmad-output/design");
+        fs::write(
+            design_dir.join("epic-5-ux-design.md"),
+            "# Epic 5 UX Design\n\nStatus: draft",
+        )
+        .unwrap();
+
+        // Doc in nested subfolder
+        fs::write(
+            nested_dir.join("epic-5-tech-reference.md"),
+            "# Wireframe Tech Reference\n\nStatus: in-progress",
+        )
+        .unwrap();
+
+        let groups = list_artifacts(dir.path());
+
+        // Should find both docs (recursive scanning)
+        assert_eq!(groups.design.len(), 2);
+
+        // Verify nested doc was found and parsed correctly
+        let nested_doc = groups.design.iter().find(|a| a.title == "Wireframe Tech Reference");
+        assert!(nested_doc.is_some(), "Nested design doc should be found");
+        assert_eq!(nested_doc.unwrap().status, Some("in-progress".to_string()));
     }
 }
