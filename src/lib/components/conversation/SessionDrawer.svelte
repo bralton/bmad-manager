@@ -223,10 +223,12 @@
       </div>
     </header>
 
-    <!-- Terminal area -->
-    <div class="flex-1 min-h-0">
-      <Terminal sessionId={session.id} visible={drawerOpen} />
-    </div>
+    <!-- Terminal area: keyed by session.id to remount when switching sessions -->
+    {#key session.id}
+      <div class="flex-1 min-h-0">
+        <Terminal sessionId={session.id} visible={drawerOpen} />
+      </div>
+    {/key}
 
     <!-- Terminate confirmation dialog -->
     {#if showConfirmTerminate}
