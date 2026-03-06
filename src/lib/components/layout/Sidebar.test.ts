@@ -35,24 +35,37 @@ vi.mock('$lib/stores/sessions', async () => {
 });
 
 // Mock project store with agents for AgentRoster
+// Use async factory to avoid hoisting issues
 vi.mock('$lib/stores/project', async () => {
   const { writable } = await import('svelte/store');
+  const store = writable({
+    path: '/test/project',
+    name: 'test-project',
+    state: 'fully-initialized', // Required for tabs to be enabled
+    agents: [
+      {
+        name: 'architect',
+        displayName: 'Architect',
+        title: 'Architect',
+        icon: '🏗️',
+        role: 'architect',
+        identity: '',
+        communicationStyle: '',
+        principles: '',
+        module: 'core',
+        path: '/path/to/architect.yaml',
+      },
+    ],
+    config: null,
+  });
   return {
-    currentProject: writable({
-      path: '/test/project',
-      name: 'test-project',
-      agents: [
-        {
-          name: 'architect',
-          displayName: 'Architect',
-          module: 'core',
-          path: '/path/to/architect.yaml',
-          customizations: {},
-        },
-      ],
-    }),
+    currentProject: store,
   };
 });
+
+// Import the mocked store for manipulation in tests
+import { currentProject } from '$lib/stores/project';
+import type { Project } from '$lib/types/project';
 
 // Mock process service
 vi.mock('$lib/services/process', () => ({
@@ -380,6 +393,121 @@ describe('Sidebar', () => {
       // Verify the stories button is still highlighted (view unchanged)
       const storiesButton = screen.getByRole('button', { name: /Stories/i });
       expect(storiesButton).toHaveClass('border-blue-500');
+    });
+  });
+
+  describe('tab disabling for non-initialized projects (Story 5-9 AC#11)', () => {
+    beforeEach(() => {
+      // Reset to non-fully-initialized state for these tests
+      (currentProject as { set: (v: Project | null) => void }).set({
+        path: '/test/project',
+        name: 'test-project',
+        state: 'git-only', // NOT fully-initialized
+        agents: [],
+        config: null,
+      });
+    });
+
+    afterEach(() => {
+      // Restore fully-initialized state for other tests
+      (currentProject as { set: (v: Project | null) => void }).set({
+        path: '/test/project',
+        name: 'test-project',
+        state: 'fully-initialized',
+        agents: [
+          {
+            name: 'architect',
+            displayName: 'Architect',
+            title: 'Architect',
+            icon: '🏗️',
+            role: 'architect',
+            identity: '',
+            communicationStyle: '',
+            principles: '',
+            module: 'core',
+            path: '/path/to/architect.yaml',
+          },
+        ],
+        config: null,
+      });
+    });
+
+    it('disables Workflows tab when project is not fully-initialized', () => {
+      render(Sidebar);
+
+      const workflowsButton = screen.getByRole('button', { name: /Workflows/i });
+      expect(workflowsButton).toBeDisabled();
+      expect(workflowsButton).toHaveClass('cursor-not-allowed');
+    });
+
+    it('disables Stories tab when project is not fully-initialized', () => {
+      render(Sidebar);
+
+      const storiesButton = screen.getByRole('button', { name: /Stories/i });
+      expect(storiesButton).toBeDisabled();
+      expect(storiesButton).toHaveClass('cursor-not-allowed');
+    });
+
+    it('disables Artifacts tab when project is not fully-initialized', () => {
+      render(Sidebar);
+
+      const artifactsButton = screen.getByRole('button', { name: /Artifacts/i });
+      expect(artifactsButton).toBeDisabled();
+      expect(artifactsButton).toHaveClass('cursor-not-allowed');
+    });
+
+    it('keeps Dashboards tab enabled when project is not fully-initialized', () => {
+      render(Sidebar);
+
+      const dashboardsButton = screen.getByRole('button', { name: /Dashboards/i });
+      expect(dashboardsButton).not.toBeDisabled();
+      expect(dashboardsButton).not.toHaveClass('cursor-not-allowed');
+    });
+
+    it('clicking disabled Workflows tab does not call setActiveView', async () => {
+      render(Sidebar);
+
+      const workflowsButton = screen.getByRole('button', { name: /Workflows/i });
+      await fireEvent.click(workflowsButton);
+
+      expect(uiStore.setActiveView).not.toHaveBeenCalled();
+    });
+
+    it('clicking disabled Stories tab does not call setActiveView', async () => {
+      render(Sidebar);
+
+      const storiesButton = screen.getByRole('button', { name: /Stories/i });
+      await fireEvent.click(storiesButton);
+
+      expect(uiStore.setActiveView).not.toHaveBeenCalled();
+    });
+
+    it('clicking disabled Artifacts tab does not call setActiveView', async () => {
+      render(Sidebar);
+
+      const artifactsButton = screen.getByRole('button', { name: /Artifacts/i });
+      await fireEvent.click(artifactsButton);
+
+      expect(uiStore.setActiveView).not.toHaveBeenCalled();
+    });
+
+    it('shows "Initialize project to enable" tooltip on disabled tabs', () => {
+      render(Sidebar);
+
+      const workflowsButton = screen.getByRole('button', { name: /Workflows/i });
+      const storiesButton = screen.getByRole('button', { name: /Stories/i });
+      const artifactsButton = screen.getByRole('button', { name: /Artifacts/i });
+
+      expect(workflowsButton).toHaveAttribute('title', 'Initialize project to enable');
+      expect(storiesButton).toHaveAttribute('title', 'Initialize project to enable');
+      expect(artifactsButton).toHaveAttribute('title', 'Initialize project to enable');
+    });
+
+    it('applies disabled styling (gray-600) to disabled tabs', () => {
+      render(Sidebar);
+
+      const workflowsButton = screen.getByRole('button', { name: /Workflows/i });
+      expect(workflowsButton).toHaveClass('text-gray-600');
     });
   });
 });

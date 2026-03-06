@@ -25,6 +25,9 @@
   let resumeError: string | null = $state(null);
   let project = $derived($currentProject);
 
+  // Tabs are only enabled when project is fully initialized
+  let tabsEnabled = $derived(project?.state === 'fully-initialized');
+
   // Track session changes for live refresh (use regular variable, not $state, to avoid effect loops)
   let lastSessionKey = '';
 
@@ -162,32 +165,41 @@
       Dashboards
     </button>
     <button
-      onclick={() => setActiveView('workflows')}
+      onclick={() => tabsEnabled && setActiveView('workflows')}
+      disabled={!tabsEnabled}
       class="flex-1 px-2 py-2 text-xs font-medium transition-colors
-        {currentView === 'workflows'
+        {!tabsEnabled
+        ? 'text-gray-600 cursor-not-allowed'
+        : currentView === 'workflows'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
-      title="Workflows ({formatShortcutDisplay('Cmd+2')})"
+      title={tabsEnabled ? `Workflows (${formatShortcutDisplay('Cmd+2')})` : 'Initialize project to enable'}
     >
       Workflows
     </button>
     <button
-      onclick={() => setActiveView('stories')}
+      onclick={() => tabsEnabled && setActiveView('stories')}
+      disabled={!tabsEnabled}
       class="flex-1 px-2 py-2 text-xs font-medium transition-colors
-        {currentView === 'stories'
+        {!tabsEnabled
+        ? 'text-gray-600 cursor-not-allowed'
+        : currentView === 'stories'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
-      title="Stories ({formatShortcutDisplay('Cmd+3')})"
+      title={tabsEnabled ? `Stories (${formatShortcutDisplay('Cmd+3')})` : 'Initialize project to enable'}
     >
       Stories
     </button>
     <button
-      onclick={() => setActiveView('artifacts')}
+      onclick={() => tabsEnabled && setActiveView('artifacts')}
+      disabled={!tabsEnabled}
       class="flex-1 px-2 py-2 text-xs font-medium transition-colors
-        {currentView === 'artifacts'
+        {!tabsEnabled
+        ? 'text-gray-600 cursor-not-allowed'
+        : currentView === 'artifacts'
         ? 'text-gray-200 bg-gray-800/50 border-b-2 border-blue-500'
         : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}"
-      title="Artifacts ({formatShortcutDisplay('Cmd+4')})"
+      title={tabsEnabled ? `Artifacts (${formatShortcutDisplay('Cmd+4')})` : 'Initialize project to enable'}
     >
       Artifacts
     </button>

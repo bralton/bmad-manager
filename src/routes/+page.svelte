@@ -4,6 +4,7 @@
   import ProjectPicker from '$lib/components/project/ProjectPicker.svelte';
   import PinnedSessionsBar from '$lib/components/conversation/PinnedSessionsBar.svelte';
   import SessionDrawer from '$lib/components/conversation/SessionDrawer.svelte';
+  import ProjectInfoBar from '$lib/components/project/ProjectInfoBar.svelte';
   import FirstRunWizard from '$lib/components/settings/FirstRunWizard.svelte';
   import SettingsModal from '$lib/components/settings/SettingsModal.svelte';
   import DashboardVisualizerContainer from '$lib/components/dashboard/DashboardVisualizerContainer.svelte';
@@ -264,11 +265,17 @@
    * Registers all keyboard shortcut actions.
    */
   function setupShortcutActions() {
-    // Navigation shortcuts
+    // Navigation shortcuts - non-Dashboard tabs only work when project is fully initialized
     setShortcutAction('view-dashboards', () => activeView.set('dashboards'));
-    setShortcutAction('view-workflows', () => activeView.set('workflows'));
-    setShortcutAction('view-stories', () => activeView.set('stories'));
-    setShortcutAction('view-artifacts', () => activeView.set('artifacts'));
+    setShortcutAction('view-workflows', () => {
+      if (project?.state === 'fully-initialized') activeView.set('workflows');
+    });
+    setShortcutAction('view-stories', () => {
+      if (project?.state === 'fully-initialized') activeView.set('stories');
+    });
+    setShortcutAction('view-artifacts', () => {
+      if (project?.state === 'fully-initialized') activeView.set('artifacts');
+    });
 
     // Session shortcuts
     setShortcutAction('new-conversation', handleNewConversation);
@@ -372,6 +379,9 @@
     <!-- Session Drawer - push layout, slides down from pinned bar -->
     <SessionDrawer />
 
+    <!-- Project Info Bar - minimal persistent header showing project context -->
+    <ProjectInfoBar />
+
     <!-- Main content area - shrinks when drawer opens -->
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
       {#if currentView === 'dashboards'}
@@ -396,7 +406,8 @@
               {/if}
             </div>
           </div>
-        {:else if !hasAnySessions}
+        {:else if !project || project.state !== 'fully-initialized'}
+          <!-- Welcome card with initialization actions - only on Dashboards for non-fully-initialized -->
           <div class="flex-1 p-8">
             <header class="mb-8">
               <h1 class="text-2xl font-bold">Welcome to BMAD Manager</h1>
@@ -408,33 +419,6 @@
       {:else if currentView === 'workflows'}
         <!-- Workflow View - BMAD Phase visualization -->
         <WorkflowVisualizerContainer />
-
-        {#if isSpawningSession}
-          <div class="flex-1 flex items-center justify-center">
-            <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700 max-w-md w-full mx-4">
-              <div class="flex items-center gap-3 mb-4">
-                <span class="text-2xl animate-pulse">🚀</span>
-                <span class="text-lg text-gray-100">Starting Claude session...</span>
-              </div>
-              <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div class="h-full bg-blue-500 rounded-full animate-progress-indeterminate"></div>
-              </div>
-              {#if pendingCommand}
-                <p class="text-sm text-gray-400 mt-3">
-                  Queued: <span class="text-blue-400 font-mono">/{pendingCommand}</span>
-                </p>
-              {/if}
-            </div>
-          </div>
-        {:else if !hasAnySessions}
-          <div class="flex-1 p-8">
-            <header class="mb-8">
-              <h1 class="text-2xl font-bold">Welcome to BMAD Manager</h1>
-            </header>
-
-            <ProjectPicker />
-          </div>
-        {/if}
       {:else if currentView === 'stories'}
         <!-- Story Board View -->
         <StoryBoardContainer />
