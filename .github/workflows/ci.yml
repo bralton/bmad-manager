@@ -116,8 +116,6 @@ jobs:
 
       - name: Run E2E tests
         run: xvfb-run npm run test:e2e
-        env:
-          TAURI_DRIVER_STARTUP_DELAY: 3000
 
       - name: Upload E2E test results
         if: always()

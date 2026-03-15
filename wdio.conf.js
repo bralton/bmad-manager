@@ -14,6 +14,7 @@
  */
 
 import { spawn } from 'child_process';
+import { createConnection } from 'net';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
@@ -22,6 +23,33 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Store the driver process globally so we can clean it up
 let tauriDriver = null;
+
+/**
+ * Waits for a port to be available by attempting to connect.
+ * @param {number} port - Port number to check
+ * @param {number} timeout - Max time to wait in ms
+ * @param {number} interval - Time between checks in ms
+ * @returns {Promise<boolean>} - Resolves true when port is available, false on timeout
+ */
+async function waitForPort(port, timeout = 10000, interval = 200) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const available = await new Promise((resolve) => {
+      const socket = createConnection({ port, host: '127.0.0.1' });
+      socket.once('connect', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once('error', () => {
+        socket.destroy();
+        resolve(false);
+      });
+    });
+    if (available) return true;
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  return false;
+}
 
 /**
  * Resolves the path to tauri-driver binary.
@@ -106,7 +134,7 @@ export const config = {
    * Gets executed before test execution begins.
    * Spawns the tauri-driver process.
    */
-  onPrepare: function () {
+  onPrepare: async function () {
     const driverPath = getTauriDriverPath();
     console.log(`Starting tauri-driver from: ${driverPath}`);
 
@@ -140,10 +168,16 @@ export const config = {
       throw err;
     });
 
-    // Wait for tauri-driver to be ready (check port 4444)
-    // Configurable via TAURI_DRIVER_STARTUP_DELAY env var (default 1000ms)
-    const startupDelay = parseInt(process.env.TAURI_DRIVER_STARTUP_DELAY || '1000', 10);
-    return new Promise((resolve) => setTimeout(resolve, startupDelay));
+    // Wait for tauri-driver to be ready by checking port 4444
+    const portTimeout = parseInt(process.env.TAURI_DRIVER_STARTUP_DELAY || '15000', 10);
+    console.log(`Waiting up to ${portTimeout}ms for tauri-driver to listen on port 4444...`);
+
+    const portReady = await waitForPort(4444, portTimeout);
+    if (!portReady) {
+      console.error('tauri-driver failed to start listening on port 4444');
+      throw new Error('tauri-driver startup timeout');
+    }
+    console.log('tauri-driver is ready!');
   },
 
   /**
