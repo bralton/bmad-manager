@@ -189,6 +189,39 @@ CI runs in a headless environment. Ensure:
 - No tests rely on specific screen dimensions
 - No tests rely on clipboard/system APIs
 
+## Handling Native File Dialogs
+
+The `@tauri-apps/plugin-dialog` opens native OS file dialogs which WebDriver cannot automate directly. We use a custom approach to bypass this limitation:
+
+### Direct IPC Invocation
+
+Instead of clicking "Select Folder" and interacting with the native dialog, tests call Tauri commands directly via `browser.execute()`:
+
+```javascript
+await browser.execute(async (path) => {
+  const { invoke } = window.__TAURI__.core;
+  const project = await invoke('open_project', { path });
+  // Dispatch custom event to update Svelte stores
+  window.dispatchEvent(new CustomEvent('e2e-set-project', { detail: project }));
+}, projectPath);
+```
+
+### E2E Event Hook
+
+The app's root layout (`+layout.svelte`) listens for a custom `e2e-set-project` event that directly updates the `currentProject` store. This allows tests to programmatically set the project without user interaction.
+
+### Test Fixtures
+
+Test fixtures are located in `e2e/fixtures/`:
+
+| Fixture | Description | State |
+|---------|-------------|-------|
+| `bmad-project` | Full BMAD setup with agents | `fully-initialized` |
+| `git-only-project` | Git repo without BMAD | `git-only` |
+| `empty-project` | Empty directory | `empty` |
+
+Use `copyFixtureToTemp()` to copy fixtures to temp directories before tests to avoid modifying originals.
+
 ## npm Scripts Reference
 
 | Script | Description |

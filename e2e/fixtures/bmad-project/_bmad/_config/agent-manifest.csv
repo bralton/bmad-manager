@@ -1,0 +1,3 @@
+name,displayName,title,icon,role,identity,communicationStyle,principles,module,path
+"analyst","Mary","Business Analyst","ba","BA Role","Identity","Style","Principles","bmm","path.md"
+"dev","Amelia","Developer","dev","Dev Role","Identity","Style","Principles","bmm","dev.md"

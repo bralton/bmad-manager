@@ -1,0 +1,10 @@
+# BMM Module Configuration for E2E Test Fixture
+project_name: test-bmad-project
+user_skill_level: intermediate
+planning_artifacts: "{project-root}/_bmad-output/planning-artifacts"
+implementation_artifacts: "{project-root}/_bmad-output/implementation-artifacts"
+project_knowledge: "{project-root}/docs"
+user_name: TestUser
+communication_language: English
+document_output_language: English
+output_folder: _bmad-output

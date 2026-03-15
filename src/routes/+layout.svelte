@@ -4,6 +4,8 @@
   import { listen } from '@tauri-apps/api/event';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { currentProject } from '$lib/stores/project';
+  import type { Project } from '$lib/types/project';
 
   let { children } = $props();
 
@@ -24,8 +26,16 @@
       }
     });
 
+    // E2E testing hook: Listen for custom event to set project directly
+    // This bypasses the native file dialog which cannot be automated
+    const handleE2ESetProject = (event: CustomEvent<Project>) => {
+      currentProject.set(event.detail);
+    };
+    window.addEventListener('e2e-set-project', handleE2ESetProject as EventListener);
+
     return () => {
       unlisten.then((fn) => fn());
+      window.removeEventListener('e2e-set-project', handleE2ESetProject as EventListener);
     };
   });
 </script>
