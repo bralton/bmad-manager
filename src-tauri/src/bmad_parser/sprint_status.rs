@@ -17,7 +17,6 @@ pub enum EpicStatus {
     Done,
 }
 
-
 // Note: StoryStatus is imported from artifacts.rs to avoid duplicate enum definitions.
 // Both story files (Status: line) and sprint-status.yaml use the same status values.
 
@@ -44,7 +43,6 @@ pub struct Bug {
     /// Current status of the bug (reuses StoryStatus)
     pub status: StoryStatus,
 }
-
 
 /// Represents an epic with its status and optional retrospective.
 #[derive(Debug, Clone, Serialize, Deserialize)]

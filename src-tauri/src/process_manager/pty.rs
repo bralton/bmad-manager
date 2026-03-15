@@ -72,9 +72,9 @@ impl PtyManager {
     /// This is a blocking read that waits for data.
     pub async fn read_output(&self) -> Result<Vec<u8>, ProcessError> {
         let master = self.master.lock().await;
-        let mut reader = master.try_clone_reader().map_err(|e| {
-            ProcessError::IoError(std::io::Error::other(e))
-        })?;
+        let mut reader = master
+            .try_clone_reader()
+            .map_err(|e| ProcessError::IoError(std::io::Error::other(e)))?;
 
         // Read in a separate task to avoid blocking
         let result = tokio::task::spawn_blocking(move || {
@@ -103,9 +103,9 @@ impl PtyManager {
         // Initialize writer on first call
         if writer_guard.is_none() {
             let master = self.master.lock().await;
-            let new_writer = master.take_writer().map_err(|e| {
-                ProcessError::IoError(std::io::Error::other(e))
-            })?;
+            let new_writer = master
+                .take_writer()
+                .map_err(|e| ProcessError::IoError(std::io::Error::other(e)))?;
             *writer_guard = Some(new_writer);
         }
 

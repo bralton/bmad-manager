@@ -38,7 +38,6 @@ pub struct BugContent {
     pub error: Option<String>,
 }
 
-
 /// Reads and parses a bug file into structured sections.
 ///
 /// # Arguments

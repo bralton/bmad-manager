@@ -218,8 +218,7 @@ fn extract_file_path(item: &str) -> String {
         .trim();
 
     // Remove any trailing punctuation
-    path.trim_end_matches([',', ';', ':'])
-        .to_string()
+    path.trim_end_matches([',', ';', ':']).to_string()
 }
 
 /// Splits a string by commas, but respects brackets (does not split inside []).

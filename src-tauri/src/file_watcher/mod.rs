@@ -185,9 +185,10 @@ impl BmadWatcher {
 
         // Check for planning artifacts (markdown files)
         if path_str.contains("planning-artifacts")
-            && path.extension().map(|e| e == "md").unwrap_or(false) {
-                return WatchEvent::ArtifactModified { path: path_string };
-            }
+            && path.extension().map(|e| e == "md").unwrap_or(false)
+        {
+            return WatchEvent::ArtifactModified { path: path_string };
+        }
 
         // Check for implementation artifacts
         if path_str.contains("implementation-artifacts") {

@@ -27,7 +27,6 @@ pub struct StoryContent {
     pub error: Option<String>,
 }
 
-
 /// Reads and parses a story file into structured sections.
 ///
 /// # Arguments
