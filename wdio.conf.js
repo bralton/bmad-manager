@@ -25,29 +25,57 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let tauriDriver = null;
 
 /**
+ * Simple delay function.
+ */
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Waits for a port to be available by attempting to connect.
  * @param {number} port - Port number to check
  * @param {number} timeout - Max time to wait in ms
  * @param {number} interval - Time between checks in ms
  * @returns {Promise<boolean>} - Resolves true when port is available, false on timeout
  */
-async function waitForPort(port, timeout = 10000, interval = 200) {
+async function waitForPort(port, timeout = 10000, interval = 500) {
   const start = Date.now();
+  let attempts = 0;
+
   while (Date.now() - start < timeout) {
-    const available = await new Promise((resolve) => {
-      const socket = createConnection({ port, host: '127.0.0.1' });
-      socket.once('connect', () => {
-        socket.destroy();
-        resolve(true);
+    attempts++;
+    try {
+      const available = await new Promise((resolve) => {
+        const socket = createConnection({ port, host: '127.0.0.1' });
+        const timer = setTimeout(() => {
+          socket.destroy();
+          resolve(false);
+        }, 1000);
+
+        socket.once('connect', () => {
+          clearTimeout(timer);
+          socket.destroy();
+          resolve(true);
+        });
+        socket.once('error', () => {
+          clearTimeout(timer);
+          socket.destroy();
+          resolve(false);
+        });
       });
-      socket.once('error', () => {
-        socket.destroy();
-        resolve(false);
-      });
-    });
-    if (available) return true;
-    await new Promise((r) => setTimeout(r, interval));
+
+      if (available) {
+        console.log(`Port ${port} is available after ${attempts} attempts`);
+        return true;
+      }
+    } catch (err) {
+      console.log(`Port check attempt ${attempts} failed:`, err.message);
+    }
+
+    await delay(interval);
   }
+
+  console.log(`Port ${port} not available after ${attempts} attempts (${timeout}ms)`);
   return false;
 }
 
@@ -151,9 +179,11 @@ export const config = {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        RUST_LOG: process.env.RUST_LOG || 'warn',
+        RUST_LOG: process.env.RUST_LOG || 'info',
       },
     });
+
+    console.log(`tauri-driver spawned with PID: ${tauriDriver.pid}`);
 
     tauriDriver.stdout?.on('data', (data) => {
       console.log(`[tauri-driver] ${data.toString().trim()}`);
@@ -165,19 +195,33 @@ export const config = {
 
     tauriDriver.on('error', (err) => {
       console.error('Failed to start tauri-driver:', err);
-      throw err;
     });
+
+    tauriDriver.on('exit', (code, signal) => {
+      console.log(`tauri-driver exited with code ${code}, signal ${signal}`);
+    });
+
+    // Give the process a moment to start
+    await delay(500);
+    console.log(`tauri-driver running: ${!tauriDriver.killed}, exitCode: ${tauriDriver.exitCode}`);
 
     // Wait for tauri-driver to be ready by checking port 4444
     const portTimeout = parseInt(process.env.TAURI_DRIVER_STARTUP_DELAY || '15000', 10);
     console.log(`Waiting up to ${portTimeout}ms for tauri-driver to listen on port 4444...`);
 
-    const portReady = await waitForPort(4444, portTimeout);
-    if (!portReady) {
-      console.error('tauri-driver failed to start listening on port 4444');
-      throw new Error('tauri-driver startup timeout');
+    try {
+      const portReady = await waitForPort(4444, portTimeout);
+      if (!portReady) {
+        console.error('tauri-driver failed to start listening on port 4444');
+        // Don't throw - let wdio's connection retry handle it
+        console.error('Continuing anyway, wdio will retry connection...');
+      } else {
+        console.log('tauri-driver is ready!');
+      }
+    } catch (err) {
+      console.error('Error waiting for port:', err);
+      // Don't throw - let wdio's connection retry handle it
     }
-    console.log('tauri-driver is ready!');
   },
 
   /**
