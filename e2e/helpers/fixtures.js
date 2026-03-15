@@ -85,11 +85,24 @@ function copyRecursive(src, dest) {
 /**
  * Removes a temporary directory and all its contents.
  *
+ * Safety: Only removes directories within system temp folder.
+ * Errors are logged but not thrown to avoid masking test failures.
+ *
  * @param {string} tempPath - Path to the temporary directory
  */
 export function cleanupTemp(tempPath) {
-  if (tempPath && tempPath.includes(os.tmpdir()) && fs.existsSync(tempPath)) {
-    fs.rmSync(tempPath, { recursive: true, force: true });
+  if (!tempPath || !tempPath.includes(os.tmpdir())) {
+    return;
+  }
+
+  try {
+    if (fs.existsSync(tempPath)) {
+      fs.rmSync(tempPath, { recursive: true, force: true });
+    }
+  } catch (error) {
+    // Log but don't throw - cleanup failures shouldn't mask test failures
+    // System temp folder will eventually be cleared by OS
+    console.warn(`Warning: Failed to cleanup temp directory ${tempPath}:`, error.message);
   }
 }
 

@@ -175,7 +175,8 @@ describe('Project Selection Flow', () => {
      * NOTE: This test requires network access to npm registry as it runs
      * `npx bmad-method@6`. It validates BUG-004 fix (invalid --project-name flag).
      *
-     * This test is marked with @slow tag and may take 30-60 seconds.
+     * This test may take 30-60 seconds due to npx package download.
+     * The 120000ms (2 minute) timeout on waitForExist accounts for this.
      */
     it('should initialize BMAD in git-only folder and show Fully Initialized status', async () => {
       // Copy git-only fixture to temp
@@ -239,10 +240,17 @@ describe('Project Selection Flow', () => {
       }, projectPath);
       await expect(bmadExists).toBe(true);
 
-      // Verify agent roster section is visible
+      // Verify agent roster section is visible and populated
       const agentsHeader = await $('h3=Agents');
       await agentsHeader.waitForExist({ timeout: 5000 });
       await expect(agentsHeader).toBeDisplayed();
+
+      // Verify at least one agent card appears (bmad-method creates default agents)
+      // Wait for agent cards to render - look for any button in the agents section
+      const agentSection = await $('h3=Agents');
+      const agentButtons = await agentSection.parentElement().$$('button');
+      // bmad-method@6 creates at least 1 agent by default
+      await expect(agentButtons.length).toBeGreaterThanOrEqual(1);
     });
   });
 });
