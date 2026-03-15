@@ -5,7 +5,7 @@
 
 mod db;
 
-pub use db::{DbError, SessionRecord, SessionStatus, WorktreeBinding, SearchResult};
+pub use db::{DbError, SearchResult, SessionRecord, SessionStatus, WorktreeBinding};
 
 use chrono::Utc;
 use rusqlite::Connection;
@@ -33,8 +33,9 @@ impl SessionDb {
 /// Gets the path to the session database.
 /// Returns an error if the home directory cannot be determined.
 fn get_db_path() -> Result<PathBuf, DbError> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| DbError::DirectoryCreationFailed("Could not determine home directory".to_string()))?;
+    let home = dirs::home_dir().ok_or_else(|| {
+        DbError::DirectoryCreationFailed("Could not determine home directory".to_string())
+    })?;
     Ok(home.join(".bmad-manager").join("sessions.db"))
 }
 
@@ -56,13 +57,19 @@ pub fn init_session_db() -> Result<(), DbError> {
         let conn = db.conn.lock().unwrap();
         let count = db::mark_active_sessions_interrupted(&conn)?;
         if count > 0 {
-            eprintln!("Cleaned up {} stale active sessions from previous run", count);
+            eprintln!(
+                "Cleaned up {} stale active sessions from previous run",
+                count
+            );
         }
 
         // Prune old sessions to prevent unbounded database growth
         let pruned = db::prune_old_sessions(&conn, SESSION_MAX_AGE_DAYS)?;
         if pruned > 0 {
-            eprintln!("Pruned {} sessions older than {} days", pruned, SESSION_MAX_AGE_DAYS);
+            eprintln!(
+                "Pruned {} sessions older than {} days",
+                pruned, SESSION_MAX_AGE_DAYS
+            );
         }
     }
 
@@ -176,7 +183,9 @@ pub fn get_all_worktree_bindings() -> Result<Vec<WorktreeBinding>, DbError> {
 /// Gets a worktree binding by worktree path.
 /// Used by Story 3-6 (worktree cleanup) - not yet called externally.
 #[allow(dead_code)]
-pub fn get_worktree_binding_by_path(worktree_path: &str) -> Result<Option<WorktreeBinding>, DbError> {
+pub fn get_worktree_binding_by_path(
+    worktree_path: &str,
+) -> Result<Option<WorktreeBinding>, DbError> {
     let db = get_db()?;
     let conn = db.conn.lock().unwrap();
     db::get_worktree_binding_by_path(&conn, worktree_path)

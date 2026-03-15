@@ -13,7 +13,7 @@ mod worktree;
 pub use process_manager::get_active_session_count;
 
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager, WebviewWindowBuilder, WebviewUrl};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 // Artifact Tauri commands
 
@@ -40,8 +40,7 @@ fn get_workflows(project_path: String) -> Result<Vec<bmad_parser::Workflow>, Str
     let path = PathBuf::from(&project_path);
     let manifest_path = path.join("_bmad/_config/workflow-manifest.csv");
 
-    bmad_parser::parse_workflow_manifest(&manifest_path)
-        .map_err(|e| e.to_string())
+    bmad_parser::parse_workflow_manifest(&manifest_path).map_err(|e| e.to_string())
 }
 
 /// Gets available BMAD tasks from the task manifest.
@@ -52,8 +51,7 @@ fn get_tasks(project_path: String) -> Result<Vec<bmad_parser::Task>, String> {
     let path = PathBuf::from(&project_path);
     let manifest_path = path.join("_bmad/_config/task-manifest.csv");
 
-    bmad_parser::parse_task_manifest(&manifest_path)
-        .map_err(|e| e.to_string())
+    bmad_parser::parse_task_manifest(&manifest_path).map_err(|e| e.to_string())
 }
 
 /// Gets the sprint status for a project.
@@ -203,7 +201,13 @@ async fn open_in_terminal(dir_path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(["/c", "start", "cmd", "/K", &format!("cd /d \"{}\"", dir_path)])
+            .args([
+                "/c",
+                "start",
+                "cmd",
+                "/K",
+                &format!("cd /d \"{}\"", dir_path),
+            ])
             .spawn()
             .map_err(|e| format!("Failed to open Command Prompt: {}", e))?;
     }
@@ -272,7 +276,9 @@ fn check_dependencies() -> Vec<settings::DependencyStatus> {
 /// Gets project-specific settings from the project directory.
 /// Returns default (empty) settings if no project settings file exists.
 #[tauri::command]
-fn get_project_settings(project_path: String) -> Result<settings::ProjectSettings, settings::SettingsError> {
+fn get_project_settings(
+    project_path: String,
+) -> Result<settings::ProjectSettings, settings::SettingsError> {
     let path = PathBuf::from(&project_path);
     settings::get_project_settings(&path)
 }
@@ -280,7 +286,10 @@ fn get_project_settings(project_path: String) -> Result<settings::ProjectSetting
 /// Saves project-specific settings to the project directory.
 /// Creates the .bmad-manager directory if it doesn't exist.
 #[tauri::command]
-fn save_project_settings(project_path: String, settings_data: settings::ProjectSettings) -> Result<(), settings::SettingsError> {
+fn save_project_settings(
+    project_path: String,
+    settings_data: settings::ProjectSettings,
+) -> Result<(), settings::SettingsError> {
     let path = PathBuf::from(&project_path);
     settings::save_project_settings(&path, &settings_data)
 }
@@ -288,7 +297,9 @@ fn save_project_settings(project_path: String, settings_data: settings::ProjectS
 /// Gets effective settings by merging global and project-specific settings.
 /// Project settings take precedence over global settings when present.
 #[tauri::command]
-fn get_effective_settings(project_path: String) -> Result<settings::EffectiveSettings, settings::SettingsError> {
+fn get_effective_settings(
+    project_path: String,
+) -> Result<settings::EffectiveSettings, settings::SettingsError> {
     let path = PathBuf::from(&project_path);
     let global = settings::get_settings()?;
     let project = settings::get_project_settings(&path)?;
@@ -299,19 +310,27 @@ fn get_effective_settings(project_path: String) -> Result<settings::EffectiveSet
 
 /// Gets recent sessions across all projects.
 #[tauri::command]
-fn get_recent_sessions(limit: u32) -> Result<Vec<session_registry::SessionRecord>, session_registry::DbError> {
+fn get_recent_sessions(
+    limit: u32,
+) -> Result<Vec<session_registry::SessionRecord>, session_registry::DbError> {
     session_registry::get_recent_sessions(limit)
 }
 
 /// Gets sessions for a specific project.
 #[tauri::command]
-fn get_sessions_for_project(project_path: String, limit: u32) -> Result<Vec<session_registry::SessionRecord>, session_registry::DbError> {
+fn get_sessions_for_project(
+    project_path: String,
+    limit: u32,
+) -> Result<Vec<session_registry::SessionRecord>, session_registry::DbError> {
     session_registry::get_sessions_for_project(&project_path, limit)
 }
 
 /// Searches sessions by agent, workflow, or project name.
 #[tauri::command]
-fn search_sessions(query: String, limit: u32) -> Result<Vec<session_registry::SessionRecord>, session_registry::DbError> {
+fn search_sessions(
+    query: String,
+    limit: u32,
+) -> Result<Vec<session_registry::SessionRecord>, session_registry::DbError> {
     session_registry::search_sessions(&query, limit)
 }
 
@@ -381,16 +400,12 @@ async fn open_project_window(
 
     let project_name = project_name_from_path(&project_path);
 
-    WebviewWindowBuilder::new(
-        &app_handle,
-        &window_label,
-        WebviewUrl::App(url.into()),
-    )
-    .title(format!("BMAD Manager - {}", project_name))
-    .inner_size(1200.0, 800.0)
-    .min_inner_size(800.0, 600.0)
-    .build()
-    .map_err(|e| e.to_string())?;
+    WebviewWindowBuilder::new(&app_handle, &window_label, WebviewUrl::App(url.into()))
+        .title(format!("BMAD Manager - {}", project_name))
+        .inner_size(1200.0, 800.0)
+        .min_inner_size(800.0, 600.0)
+        .build()
+        .map_err(|e| e.to_string())?;
 
     Ok(window_label)
 }

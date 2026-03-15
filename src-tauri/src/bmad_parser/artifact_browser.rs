@@ -149,9 +149,7 @@ fn is_story_filename(filename: &str) -> bool {
     }
 
     // First part: digits or digits.digits (e.g., "1" or "2.5")
-    let first_valid = parts[0]
-        .chars()
-        .all(|c| c.is_ascii_digit() || c == '.');
+    let first_valid = parts[0].chars().all(|c| c.is_ascii_digit() || c == '.');
     if !first_valid || parts[0].is_empty() {
         return false;
     }
@@ -215,10 +213,7 @@ fn extract_title_from_content(content: &str, filename: &str) -> String {
     }
 
     // Fallback: use filename without extension
-    filename
-        .strip_suffix(".md")
-        .unwrap_or(filename)
-        .to_string()
+    filename.strip_suffix(".md").unwrap_or(filename).to_string()
 }
 
 /// Extracts the status from markdown file content.
@@ -228,10 +223,7 @@ fn extract_status_from_content(content: &str) -> Option<String> {
     for line in content.lines() {
         let trimmed = line.trim().to_lowercase();
         if trimmed.starts_with("status:") {
-            let status = line
-                .split(':')
-                .nth(1)
-                .map(|s| s.trim().to_string());
+            let status = line.split(':').nth(1).map(|s| s.trim().to_string());
             return status;
         }
     }
@@ -273,7 +265,10 @@ fn is_planning_workflow_type(workflow_type: &str) -> bool {
     let wt = workflow_type.to_lowercase();
 
     // Exact matches
-    if matches!(wt.as_str(), "product-brief" | "prd" | "tech-spec" | "architecture") {
+    if matches!(
+        wt.as_str(),
+        "product-brief" | "prd" | "tech-spec" | "architecture"
+    ) {
         return true;
     }
 
@@ -313,7 +308,9 @@ pub fn parse_artifact_file(path: &Path) -> Option<ArtifactInfo> {
     // Extract IDs based on category
     let epic_id = match category {
         ArtifactCategory::Epic | ArtifactCategory::Retrospective => extract_epic_id(filename),
-        ArtifactCategory::Story => extract_story_id(filename).map(|s| s.split('-').next().unwrap_or("").to_string()),
+        ArtifactCategory::Story => {
+            extract_story_id(filename).map(|s| s.split('-').next().unwrap_or("").to_string())
+        }
         _ => None,
     };
 
@@ -631,7 +628,9 @@ fn is_design_doc_for_epic(filename: &str, epic_id: &str) -> bool {
     }
 
     // Include design-related files
-    filename_lower.contains("-ux-") || filename_lower.contains("-design") || filename_lower.contains("-tech-")
+    filename_lower.contains("-ux-")
+        || filename_lower.contains("-design")
+        || filename_lower.contains("-tech-")
 }
 
 #[cfg(test)]
@@ -752,7 +751,10 @@ mod tests {
 
     #[test]
     fn test_extract_epic_id() {
-        assert_eq!(extract_epic_id("epic-1-foundation.md"), Some("1".to_string()));
+        assert_eq!(
+            extract_epic_id("epic-1-foundation.md"),
+            Some("1".to_string())
+        );
         assert_eq!(extract_epic_id("epic-2.5-prep.md"), Some("2.5".to_string()));
         assert_eq!(extract_epic_id("epic-3-retro.md"), Some("3".to_string()));
         assert_eq!(extract_epic_id("not-an-epic.md"), None);
@@ -779,10 +781,7 @@ mod tests {
     #[test]
     fn test_extract_title_fallback_to_filename() {
         let content = "No heading here";
-        assert_eq!(
-            extract_title_from_content(content, "my-file.md"),
-            "my-file"
-        );
+        assert_eq!(extract_title_from_content(content, "my-file.md"), "my-file");
     }
 
     #[test]
@@ -941,7 +940,11 @@ mod tests {
         .unwrap();
 
         // Create an epic
-        fs::write(impl_dir.join("epic-1-foundation.md"), "# Epic 1: Foundation").unwrap();
+        fs::write(
+            impl_dir.join("epic-1-foundation.md"),
+            "# Epic 1: Foundation",
+        )
+        .unwrap();
 
         let groups = list_artifacts(dir.path());
         assert_eq!(groups.stories.len(), 1);
@@ -1162,7 +1165,10 @@ mod tests {
         assert_eq!(groups.design.len(), 2);
 
         // Verify nested doc was found and parsed correctly
-        let nested_doc = groups.design.iter().find(|a| a.title == "Wireframe Tech Reference");
+        let nested_doc = groups
+            .design
+            .iter()
+            .find(|a| a.title == "Wireframe Tech Reference");
         assert!(nested_doc.is_some(), "Nested design doc should be found");
         assert_eq!(nested_doc.unwrap().status, Some("in-progress".to_string()));
     }

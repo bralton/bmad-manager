@@ -143,10 +143,7 @@ pub fn parse_frontmatter(path: &Path) -> Option<ArtifactMeta> {
         Err(e) => {
             // Log warning for malformed YAML - using eprintln for now
             // TODO: Replace with tracing crate for structured logging
-            eprintln!(
-                "Warning: Failed to parse frontmatter in {:?}: {}",
-                path, e
-            );
+            eprintln!("Warning: Failed to parse frontmatter in {:?}: {}", path, e);
             return None;
         }
     };
@@ -273,11 +270,7 @@ pub fn parse_story(path: &Path) -> Option<StoryMeta> {
         .lines()
         .find(|line| line.to_lowercase().starts_with("status:"))?;
 
-    let status_str = status_line
-        .split(':')
-        .nth(1)?
-        .trim()
-        .to_lowercase();
+    let status_str = status_line.split(':').nth(1)?.trim().to_lowercase();
 
     let status = match status_str.as_str() {
         "backlog" => StoryStatus::Backlog,
@@ -418,20 +411,50 @@ mod tests {
 
     #[test]
     fn test_story_status_serialization() {
-        assert_eq!(serde_json::to_string(&StoryStatus::Backlog).unwrap(), "\"backlog\"");
-        assert_eq!(serde_json::to_string(&StoryStatus::ReadyForDev).unwrap(), "\"ready-for-dev\"");
-        assert_eq!(serde_json::to_string(&StoryStatus::InProgress).unwrap(), "\"in-progress\"");
-        assert_eq!(serde_json::to_string(&StoryStatus::Review).unwrap(), "\"review\"");
-        assert_eq!(serde_json::to_string(&StoryStatus::Done).unwrap(), "\"done\"");
+        assert_eq!(
+            serde_json::to_string(&StoryStatus::Backlog).unwrap(),
+            "\"backlog\""
+        );
+        assert_eq!(
+            serde_json::to_string(&StoryStatus::ReadyForDev).unwrap(),
+            "\"ready-for-dev\""
+        );
+        assert_eq!(
+            serde_json::to_string(&StoryStatus::InProgress).unwrap(),
+            "\"in-progress\""
+        );
+        assert_eq!(
+            serde_json::to_string(&StoryStatus::Review).unwrap(),
+            "\"review\""
+        );
+        assert_eq!(
+            serde_json::to_string(&StoryStatus::Done).unwrap(),
+            "\"done\""
+        );
     }
 
     #[test]
     fn test_bug_status_serialization() {
-        assert_eq!(serde_json::to_string(&BugStatus::Backlog).unwrap(), "\"backlog\"");
-        assert_eq!(serde_json::to_string(&BugStatus::ReadyForDev).unwrap(), "\"ready-for-dev\"");
-        assert_eq!(serde_json::to_string(&BugStatus::InProgress).unwrap(), "\"in-progress\"");
-        assert_eq!(serde_json::to_string(&BugStatus::Review).unwrap(), "\"review\"");
-        assert_eq!(serde_json::to_string(&BugStatus::Resolved).unwrap(), "\"resolved\"");
+        assert_eq!(
+            serde_json::to_string(&BugStatus::Backlog).unwrap(),
+            "\"backlog\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BugStatus::ReadyForDev).unwrap(),
+            "\"ready-for-dev\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BugStatus::InProgress).unwrap(),
+            "\"in-progress\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BugStatus::Review).unwrap(),
+            "\"review\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BugStatus::Resolved).unwrap(),
+            "\"resolved\""
+        );
     }
 
     #[test]

@@ -107,7 +107,11 @@ communication_language: English
         fs::create_dir_all(dir.path().join("_bmad/bmm")).unwrap();
 
         // Invalid YAML - unclosed quote
-        fs::write(dir.path().join("_bmad/bmm/config.yaml"), "project_name: \"unclosed").unwrap();
+        fs::write(
+            dir.path().join("_bmad/bmm/config.yaml"),
+            "project_name: \"unclosed",
+        )
+        .unwrap();
 
         let result = open_project(dir.path().to_path_buf());
         assert!(matches!(result, Err(ProjectError::ConfigParseError(_))));
@@ -120,7 +124,11 @@ communication_language: English
         fs::create_dir_all(dir.path().join("_bmad/bmm")).unwrap();
 
         // Only project_name provided - other fields should use defaults
-        fs::write(dir.path().join("_bmad/bmm/config.yaml"), "project_name: test\n").unwrap();
+        fs::write(
+            dir.path().join("_bmad/bmm/config.yaml"),
+            "project_name: test\n",
+        )
+        .unwrap();
 
         let project = open_project(dir.path().to_path_buf()).unwrap();
         let config = project.config.unwrap();

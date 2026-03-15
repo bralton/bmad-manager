@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use super::{
-    scan_all_project_artifacts, scan_implementation_items, ArtifactMeta, ArtifactStatus,
-    BugStatus, ImplementationItems, StoryStatus,
+    scan_all_project_artifacts, scan_implementation_items, ArtifactMeta, ArtifactStatus, BugStatus,
+    ImplementationItems, StoryStatus,
 };
 
 /// Development phase in the BMAD workflow.
@@ -186,7 +186,10 @@ fn workflow_type_to_phase(workflow_type: &str) -> Phase {
 ///
 /// # Returns
 /// The determined current phase
-pub fn determine_phase(artifacts: &[ArtifactMeta], impl_items: Option<&ImplementationItems>) -> Phase {
+pub fn determine_phase(
+    artifacts: &[ArtifactMeta],
+    impl_items: Option<&ImplementationItems>,
+) -> Phase {
     // Check for active implementation work (stories and bugs)
     if let Some(items) = impl_items {
         // Any story with in-progress, review, or done status = Implementation
@@ -199,7 +202,10 @@ pub fn determine_phase(artifacts: &[ArtifactMeta], impl_items: Option<&Implement
 
         // Any bug with in-progress, review, or resolved status = Implementation
         let has_active_bug = items.bugs.iter().any(|b| {
-            matches!(b.status, BugStatus::InProgress | BugStatus::Review | BugStatus::Resolved)
+            matches!(
+                b.status,
+                BugStatus::InProgress | BugStatus::Review | BugStatus::Resolved
+            )
         });
 
         if has_active_story || has_active_bug {
@@ -286,7 +292,9 @@ pub fn aggregate_workflow_state(project_path: &Path) -> WorkflowState {
     let all_artifacts = scan_all_project_artifacts(project_path);
 
     // Scan implementation items (stories and bugs) separately
-    let impl_dir = project_path.join("_bmad-output").join("implementation-artifacts");
+    let impl_dir = project_path
+        .join("_bmad-output")
+        .join("implementation-artifacts");
     let impl_items = scan_implementation_items(&impl_dir);
 
     // Determine phase considering both artifacts and implementation items
@@ -308,8 +316,8 @@ pub fn aggregate_workflow_state(project_path: &Path) -> WorkflowState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::artifacts::{BugMeta, StoryMeta};
+    use super::*;
     use std::fs;
     use tempfile::tempdir;
 
@@ -333,28 +341,52 @@ mod tests {
 
     #[test]
     fn test_phase_serialization() {
-        assert_eq!(serde_json::to_string(&Phase::NotStarted).unwrap(), "\"not-started\"");
-        assert_eq!(serde_json::to_string(&Phase::Discovery).unwrap(), "\"discovery\"");
-        assert_eq!(serde_json::to_string(&Phase::Planning).unwrap(), "\"planning\"");
-        assert_eq!(serde_json::to_string(&Phase::Solutioning).unwrap(), "\"solutioning\"");
-        assert_eq!(serde_json::to_string(&Phase::Implementation).unwrap(), "\"implementation\"");
+        assert_eq!(
+            serde_json::to_string(&Phase::NotStarted).unwrap(),
+            "\"not-started\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Phase::Discovery).unwrap(),
+            "\"discovery\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Phase::Planning).unwrap(),
+            "\"planning\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Phase::Solutioning).unwrap(),
+            "\"solutioning\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Phase::Implementation).unwrap(),
+            "\"implementation\""
+        );
     }
 
     // ========== workflow_type_to_phase tests ==========
 
     #[test]
     fn test_workflow_type_to_phase_implementation() {
-        assert_eq!(workflow_type_to_phase("create-story"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("create-story"),
+            Phase::Implementation
+        );
         assert_eq!(workflow_type_to_phase("dev-story"), Phase::Implementation);
         assert_eq!(workflow_type_to_phase("story"), Phase::Implementation);
-        assert_eq!(workflow_type_to_phase("sprint-planning"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("sprint-planning"),
+            Phase::Implementation
+        );
     }
 
     #[test]
     fn test_workflow_type_to_phase_solutioning() {
         assert_eq!(workflow_type_to_phase("tech-spec"), Phase::Solutioning);
         assert_eq!(workflow_type_to_phase("architecture"), Phase::Solutioning);
-        assert_eq!(workflow_type_to_phase("create-architecture"), Phase::Solutioning);
+        assert_eq!(
+            workflow_type_to_phase("create-architecture"),
+            Phase::Solutioning
+        );
     }
 
     #[test]
@@ -383,11 +415,17 @@ mod tests {
     fn test_discovery_workflows() {
         // All workflows from bmad-help.csv phase 1-analysis
         assert_eq!(workflow_type_to_phase("product-brief"), Phase::Discovery);
-        assert_eq!(workflow_type_to_phase("create-product-brief"), Phase::Discovery);
+        assert_eq!(
+            workflow_type_to_phase("create-product-brief"),
+            Phase::Discovery
+        );
         assert_eq!(workflow_type_to_phase("brainstorming"), Phase::Discovery);
         assert_eq!(workflow_type_to_phase("market-research"), Phase::Discovery);
         assert_eq!(workflow_type_to_phase("domain-research"), Phase::Discovery);
-        assert_eq!(workflow_type_to_phase("technical-research"), Phase::Discovery);
+        assert_eq!(
+            workflow_type_to_phase("technical-research"),
+            Phase::Discovery
+        );
     }
 
     #[test]
@@ -405,49 +443,94 @@ mod tests {
     fn test_solutioning_workflows() {
         // All workflows from bmad-help.csv phase 3-solutioning
         assert_eq!(workflow_type_to_phase("architecture"), Phase::Solutioning);
-        assert_eq!(workflow_type_to_phase("create-architecture"), Phase::Solutioning);
+        assert_eq!(
+            workflow_type_to_phase("create-architecture"),
+            Phase::Solutioning
+        );
         assert_eq!(workflow_type_to_phase("tech-spec"), Phase::Solutioning);
         // CRITICAL: These were BROKEN before this fix
-        assert_eq!(workflow_type_to_phase("create-epics-and-stories"), Phase::Solutioning);
-        assert_eq!(workflow_type_to_phase("check-implementation-readiness"), Phase::Solutioning);
+        assert_eq!(
+            workflow_type_to_phase("create-epics-and-stories"),
+            Phase::Solutioning
+        );
+        assert_eq!(
+            workflow_type_to_phase("check-implementation-readiness"),
+            Phase::Solutioning
+        );
     }
 
     #[test]
     fn test_implementation_workflows() {
         // All workflows from bmad-help.csv phase 4-implementation
-        assert_eq!(workflow_type_to_phase("sprint-planning"), Phase::Implementation);
-        assert_eq!(workflow_type_to_phase("sprint-status"), Phase::Implementation);
-        assert_eq!(workflow_type_to_phase("create-story"), Phase::Implementation);
-        assert_eq!(workflow_type_to_phase("validate-story"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("sprint-planning"),
+            Phase::Implementation
+        );
+        assert_eq!(
+            workflow_type_to_phase("sprint-status"),
+            Phase::Implementation
+        );
+        assert_eq!(
+            workflow_type_to_phase("create-story"),
+            Phase::Implementation
+        );
+        assert_eq!(
+            workflow_type_to_phase("validate-story"),
+            Phase::Implementation
+        );
         assert_eq!(workflow_type_to_phase("dev-story"), Phase::Implementation);
         assert_eq!(workflow_type_to_phase("qa-automate"), Phase::Implementation);
         assert_eq!(workflow_type_to_phase("code-review"), Phase::Implementation);
-        assert_eq!(workflow_type_to_phase("retrospective"), Phase::Implementation);
-        assert_eq!(workflow_type_to_phase("correct-course"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("retrospective"),
+            Phase::Implementation
+        );
+        assert_eq!(
+            workflow_type_to_phase("correct-course"),
+            Phase::Implementation
+        );
     }
 
     #[test]
     fn test_no_substring_collision_epics_and_stories() {
         // This was the primary bug: "story" substring matched "epics-and-stories"
-        assert_eq!(workflow_type_to_phase("create-epics-and-stories"), Phase::Solutioning);
+        assert_eq!(
+            workflow_type_to_phase("create-epics-and-stories"),
+            Phase::Solutioning
+        );
         // But actual story workflows should still be Implementation
-        assert_eq!(workflow_type_to_phase("create-story"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("create-story"),
+            Phase::Implementation
+        );
         assert_eq!(workflow_type_to_phase("dev-story"), Phase::Implementation);
     }
 
     #[test]
     fn test_no_substring_collision_implementation_readiness() {
         // This was the secondary bug: "implementation" substring matched incorrectly
-        assert_eq!(workflow_type_to_phase("check-implementation-readiness"), Phase::Solutioning);
+        assert_eq!(
+            workflow_type_to_phase("check-implementation-readiness"),
+            Phase::Solutioning
+        );
         // But actual implementation workflows should be Implementation
-        assert_eq!(workflow_type_to_phase("sprint-planning"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("sprint-planning"),
+            Phase::Implementation
+        );
     }
 
     #[test]
     fn test_case_insensitive() {
-        assert_eq!(workflow_type_to_phase("CREATE-EPICS-AND-STORIES"), Phase::Solutioning);
+        assert_eq!(
+            workflow_type_to_phase("CREATE-EPICS-AND-STORIES"),
+            Phase::Solutioning
+        );
         assert_eq!(workflow_type_to_phase("Market-Research"), Phase::Discovery);
-        assert_eq!(workflow_type_to_phase("SPRINT-PLANNING"), Phase::Implementation);
+        assert_eq!(
+            workflow_type_to_phase("SPRINT-PLANNING"),
+            Phase::Implementation
+        );
     }
 
     #[test]
@@ -459,7 +542,10 @@ mod tests {
         assert_eq!(workflow_type_to_phase("quick-dev"), Phase::Implementation);
         // These anytime workflows correctly default to Planning
         assert_eq!(workflow_type_to_phase("document-project"), Phase::Planning);
-        assert_eq!(workflow_type_to_phase("generate-project-context"), Phase::Planning);
+        assert_eq!(
+            workflow_type_to_phase("generate-project-context"),
+            Phase::Planning
+        );
         assert_eq!(workflow_type_to_phase("party-mode"), Phase::Planning);
         assert_eq!(workflow_type_to_phase("bmad-help"), Phase::Planning);
     }
@@ -705,7 +791,10 @@ workflowType: product-brief"#,
 
         assert_eq!(state.current_phase, Phase::Discovery);
         assert!(state.active_workflow.is_some());
-        assert_eq!(state.active_workflow.unwrap().workflow_type, "product-brief");
+        assert_eq!(
+            state.active_workflow.unwrap().workflow_type,
+            "product-brief"
+        );
         assert!(state.completed_artifacts.is_empty());
     }
 
@@ -737,7 +826,10 @@ stepsCompleted: [1, 2]"#,
     #[test]
     fn test_aggregate_workflow_state_implementation_phase() {
         let dir = tempdir().unwrap();
-        let impl_dir = dir.path().join("_bmad-output").join("implementation-artifacts");
+        let impl_dir = dir
+            .path()
+            .join("_bmad-output")
+            .join("implementation-artifacts");
         fs::create_dir_all(&impl_dir).unwrap();
 
         create_test_artifact(
@@ -804,7 +896,10 @@ workflowType: tech-spec"#,
     fn test_aggregate_workflow_state_scans_both_directories() {
         let dir = tempdir().unwrap();
         let planning_dir = dir.path().join("_bmad-output").join("planning-artifacts");
-        let impl_dir = dir.path().join("_bmad-output").join("implementation-artifacts");
+        let impl_dir = dir
+            .path()
+            .join("_bmad-output")
+            .join("implementation-artifacts");
         fs::create_dir_all(&planning_dir).unwrap();
         fs::create_dir_all(&impl_dir).unwrap();
 
@@ -1008,7 +1103,10 @@ workflowType: tech-spec"#,
         };
 
         // Story in-progress should indicate Implementation phase
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
@@ -1024,7 +1122,10 @@ workflowType: tech-spec"#,
         };
 
         // Completed story indicates Implementation phase was reached
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
@@ -1040,7 +1141,10 @@ workflowType: tech-spec"#,
         };
 
         // Story in review indicates Implementation phase
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
@@ -1056,7 +1160,10 @@ workflowType: tech-spec"#,
         };
 
         // Bug in-progress indicates Implementation phase
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
@@ -1072,7 +1179,10 @@ workflowType: tech-spec"#,
         };
 
         // Resolved bug indicates Implementation phase was reached
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
@@ -1088,12 +1198,15 @@ workflowType: tech-spec"#,
         };
 
         // Bug in review indicates Implementation phase
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
     fn test_determine_phase_backlog_story_does_not_indicate_implementation() {
-// Only approved planning artifacts, no active stories
+        // Only approved planning artifacts, no active stories
         let artifacts = vec![ArtifactMeta {
             path: PathBuf::from("prd.md"),
             title: "PRD".to_string(),
@@ -1115,7 +1228,10 @@ workflowType: tech-spec"#,
 
         // Backlog story should NOT trigger Implementation phase
         // Should use artifact-based detection (Planning from approved PRD)
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Planning);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Planning
+        );
     }
 
     #[test]
@@ -1141,13 +1257,19 @@ workflowType: tech-spec"#,
         };
 
         // Active story should override draft artifact - Implementation wins
-        assert_eq!(determine_phase(&artifacts, Some(&impl_items)), Phase::Implementation);
+        assert_eq!(
+            determine_phase(&artifacts, Some(&impl_items)),
+            Phase::Implementation
+        );
     }
 
     #[test]
     fn test_aggregate_workflow_state_with_stories() {
         let dir = tempdir().unwrap();
-        let impl_dir = dir.path().join("_bmad-output").join("implementation-artifacts");
+        let impl_dir = dir
+            .path()
+            .join("_bmad-output")
+            .join("implementation-artifacts");
         fs::create_dir_all(&impl_dir).unwrap();
 
         // Create a story file (body-based status, not frontmatter)
@@ -1172,7 +1294,10 @@ As a user...
     #[test]
     fn test_aggregate_workflow_state_with_bugs() {
         let dir = tempdir().unwrap();
-        let impl_dir = dir.path().join("_bmad-output").join("implementation-artifacts");
+        let impl_dir = dir
+            .path()
+            .join("_bmad-output")
+            .join("implementation-artifacts");
         fs::create_dir_all(&impl_dir).unwrap();
 
         // Create a bug file (frontmatter-based status)

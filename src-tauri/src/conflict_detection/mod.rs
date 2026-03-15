@@ -158,7 +158,10 @@ fn parse_files_from_markdown(content: &str) -> Vec<String> {
             }
 
             // Parse bullet items: - `path` or - path or * path
-            if let Some(item) = trimmed.strip_prefix('-').or_else(|| trimmed.strip_prefix('*')) {
+            if let Some(item) = trimmed
+                .strip_prefix('-')
+                .or_else(|| trimmed.strip_prefix('*'))
+            {
                 let path = extract_file_path(item.trim());
                 if !path.is_empty() {
                     // Track indentation to handle nested lists
@@ -237,7 +240,11 @@ fn split_respecting_brackets(s: &str) -> Vec<String> {
                 current.push(ch);
             }
             ',' if bracket_depth == 0 => {
-                let trimmed = current.trim().trim_matches('"').trim_matches('\'').to_string();
+                let trimmed = current
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string();
                 if !trimmed.is_empty() {
                     result.push(trimmed);
                 }
@@ -250,7 +257,11 @@ fn split_respecting_brackets(s: &str) -> Vec<String> {
     }
 
     // Don't forget the last item
-    let trimmed = current.trim().trim_matches('"').trim_matches('\'').to_string();
+    let trimmed = current
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string();
     if !trimmed.is_empty() {
         result.push(trimmed);
     }
@@ -286,13 +297,14 @@ pub fn parse_story_files(project_path: &Path) -> Vec<StoryFiles> {
     for entry in walkdir::WalkDir::new(&impl_dir)
         .max_depth(1) // Don't recurse into subdirectories
         .into_iter()
-        .filter_map(|e| {
-            match e {
-                Ok(entry) => Some(entry),
-                Err(err) => {
-                    eprintln!("Warning: Failed to read directory entry in conflict detection: {}", err);
-                    None
-                }
+        .filter_map(|e| match e {
+            Ok(entry) => Some(entry),
+            Err(err) => {
+                eprintln!(
+                    "Warning: Failed to read directory entry in conflict detection: {}",
+                    err
+                );
+                None
             }
         })
     {
@@ -328,9 +340,7 @@ fn is_story_filename(filename: &str) -> bool {
     }
 
     // First part: digits or digits.digits (e.g., "1" or "2.5")
-    let first_valid = parts[0]
-        .chars()
-        .all(|c| c.is_ascii_digit() || c == '.');
+    let first_valid = parts[0].chars().all(|c| c.is_ascii_digit() || c == '.');
     if !first_valid || parts[0].is_empty() {
         return false;
     }
@@ -393,7 +403,11 @@ pub fn detect_conflicts(
             for (i, id1) in story_ids.iter().enumerate() {
                 for id2 in story_ids.iter().skip(i + 1) {
                     // Always order the pair consistently
-                    let pair = if id1 < id2 { (*id1, *id2) } else { (*id2, *id1) };
+                    let pair = if id1 < id2 {
+                        (*id1, *id2)
+                    } else {
+                        (*id2, *id1)
+                    };
                     conflicts_map.entry(pair).or_default().insert(*file);
                 }
             }
@@ -609,14 +623,8 @@ Other content.
 
     #[test]
     fn test_extract_story_id() {
-        assert_eq!(
-            extract_story_id("1-1-name.md"),
-            Some("1-1".to_string())
-        );
-        assert_eq!(
-            extract_story_id("2.5-3-name.md"),
-            Some("2.5-3".to_string())
-        );
+        assert_eq!(extract_story_id("1-1-name.md"), Some("1-1".to_string()));
+        assert_eq!(extract_story_id("2.5-3-name.md"), Some("2.5-3".to_string()));
         assert_eq!(extract_story_id("epic-1.md"), None);
     }
 
@@ -761,10 +769,7 @@ Other content.
 
     #[test]
     fn test_extract_file_path_backticks() {
-        assert_eq!(
-            extract_file_path("`src/file.ts`"),
-            "src/file.ts"
-        );
+        assert_eq!(extract_file_path("`src/file.ts`"), "src/file.ts");
         assert_eq!(
             extract_file_path("`src/file.ts` - Add module"),
             "src/file.ts"
@@ -782,10 +787,7 @@ Other content.
 
     #[test]
     fn test_extract_file_path_with_parens() {
-        assert_eq!(
-            extract_file_path("src/file.ts (new file)"),
-            "src/file.ts"
-        );
+        assert_eq!(extract_file_path("src/file.ts (new file)"), "src/file.ts");
     }
 
     // ========== Split respecting brackets tests ==========

@@ -3,9 +3,9 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use super::types::{CreateWorktreeOptions, Worktree, WorktreeError};
 use super::git;
 use super::merge::{self, MergeResult};
+use super::types::{CreateWorktreeOptions, Worktree, WorktreeError};
 use crate::session_registry::{self, WorktreeBinding};
 
 /// Creates a new worktree for a story.
@@ -101,7 +101,9 @@ pub async fn get_worktree_for_story(
     story_id: String,
 ) -> Result<Option<Worktree>, WorktreeError> {
     let worktrees = list_worktrees(repo_path).await?;
-    Ok(worktrees.into_iter().find(|w| w.story_id.as_ref() == Some(&story_id)))
+    Ok(worktrees
+        .into_iter()
+        .find(|w| w.story_id.as_ref() == Some(&story_id)))
 }
 
 /// Checks if a worktree has uncommitted changes.
@@ -165,9 +167,7 @@ pub async fn get_current_worktree_story_id(
 ///
 /// Returns the list of story IDs that were orphaned and cleaned up.
 #[tauri::command]
-pub async fn validate_worktree_bindings(
-    repo_path: String,
-) -> Result<Vec<String>, WorktreeError> {
+pub async fn validate_worktree_bindings(repo_path: String) -> Result<Vec<String>, WorktreeError> {
     let repo_path_buf = PathBuf::from(&repo_path);
 
     // Get actual worktrees from git

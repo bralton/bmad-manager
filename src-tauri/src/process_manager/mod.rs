@@ -182,7 +182,10 @@ pub async fn spawn_claude_session(
                 );
             }
             Err(e) => {
-                eprintln!("Warning: Failed to mark session as resumed in database: {}", e);
+                eprintln!(
+                    "Warning: Failed to mark session as resumed in database: {}",
+                    e
+                );
                 // Continue - in-memory tracking still works
             }
         }

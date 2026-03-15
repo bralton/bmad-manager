@@ -236,11 +236,15 @@ tools:
     #[test]
     fn test_workflow_style_serialization() {
         assert_eq!(
-            serde_yaml::to_string(&WorkflowStyle::QuickFlow).unwrap().trim(),
+            serde_yaml::to_string(&WorkflowStyle::QuickFlow)
+                .unwrap()
+                .trim(),
             "QuickFlow"
         );
         assert_eq!(
-            serde_yaml::to_string(&WorkflowStyle::FullBMM).unwrap().trim(),
+            serde_yaml::to_string(&WorkflowStyle::FullBMM)
+                .unwrap()
+                .trim(),
             "FullBMM"
         );
     }

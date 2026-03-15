@@ -169,10 +169,7 @@ pub fn merge_branch(
     if !conflicts.is_empty() {
         return Ok(MergeResult {
             success: false,
-            message: format!(
-                "Merge would result in {} conflict(s)",
-                conflicts.len()
-            ),
+            message: format!("Merge would result in {} conflict(s)", conflicts.len()),
             conflicts,
             merge_commit: None,
         });
@@ -215,7 +212,10 @@ pub fn merge_branch(
 
     Ok(MergeResult {
         success: true,
-        message: format!("Successfully merged '{}' into current branch", source_branch),
+        message: format!(
+            "Successfully merged '{}' into current branch",
+            source_branch
+        ),
         conflicts: Vec::new(),
         merge_commit: commit_hash,
     })

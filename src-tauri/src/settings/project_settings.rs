@@ -206,14 +206,8 @@ worktreeLocation: "subdirectory"
 "#;
 
         let settings: ProjectSettings = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(
-            settings.branch_pattern,
-            Some("custom/{slug}".to_string())
-        );
-        assert_eq!(
-            settings.worktree_location,
-            Some("subdirectory".to_string())
-        );
+        assert_eq!(settings.branch_pattern, Some("custom/{slug}".to_string()));
+        assert_eq!(settings.worktree_location, Some("subdirectory".to_string()));
         assert!(settings.ide_command.is_none());
     }
 
@@ -311,7 +305,7 @@ worktreeLocation: "subdirectory"
 
         assert_eq!(effective.branch_pattern, "custom/{story_id}");
         assert_eq!(effective.worktree_location, "sibling"); // From global
-        assert_eq!(effective.ide_command, "code .");        // From global
+        assert_eq!(effective.ide_command, "code ."); // From global
     }
 
     #[test]

@@ -92,7 +92,9 @@ pub fn create_worktree(
     // Get the HEAD of the new worktree
     let head_output = run_git(&["rev-parse", "HEAD"], worktree_path)?;
     let head = if head_output.status.success() {
-        String::from_utf8_lossy(&head_output.stdout).trim().to_string()
+        String::from_utf8_lossy(&head_output.stdout)
+            .trim()
+            .to_string()
     } else {
         "unknown".to_string()
     };
@@ -149,7 +151,9 @@ fn parse_worktree_list(output: &str) -> Result<Vec<Worktree>, WorktreeError> {
         if line.is_empty() {
             // End of a worktree entry - save if we have data
             if let (Some(path), Some(head)) = (current_path.take(), current_head.take()) {
-                let branch = current_branch.take().unwrap_or_else(|| "detached".to_string());
+                let branch = current_branch
+                    .take()
+                    .unwrap_or_else(|| "detached".to_string());
                 worktrees.push(Worktree {
                     path: path.into(),
                     branch,
@@ -503,12 +507,7 @@ mod tests {
         let dir = create_test_repo();
         let worktree_path = dir.path().parent().unwrap().join("test-worktree");
 
-        let result = create_worktree(
-            dir.path(),
-            &worktree_path,
-            "feature/test-branch",
-            None,
-        );
+        let result = create_worktree(dir.path(), &worktree_path, "feature/test-branch", None);
 
         assert!(result.is_ok());
         let wt = result.unwrap();
@@ -530,12 +529,7 @@ mod tests {
         let worktree_path = dir.path().parent().unwrap().join("existing-dir");
         fs::create_dir(&worktree_path).unwrap();
 
-        let result = create_worktree(
-            dir.path(),
-            &worktree_path,
-            "feature/test",
-            None,
-        );
+        let result = create_worktree(dir.path(), &worktree_path, "feature/test", None);
 
         assert!(matches!(result, Err(WorktreeError::AlreadyExists(_))));
 
@@ -549,13 +543,7 @@ mod tests {
         let worktree_path = dir.path().parent().unwrap().join("test-wt-list");
 
         // Create a worktree
-        create_worktree(
-            dir.path(),
-            &worktree_path,
-            "feature/list-test",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree_path, "feature/list-test", None).unwrap();
 
         let worktrees = list_worktrees(dir.path()).unwrap();
         assert_eq!(worktrees.len(), 2);
@@ -632,21 +620,10 @@ mod tests {
         let worktree2_path = dir.path().parent().unwrap().join("wt-branch-use-2");
 
         // Create first worktree with a branch
-        create_worktree(
-            dir.path(),
-            &worktree1_path,
-            "feature/shared-branch",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree1_path, "feature/shared-branch", None).unwrap();
 
         // Try to create second worktree with same branch name
-        let result = create_worktree(
-            dir.path(),
-            &worktree2_path,
-            "feature/shared-branch",
-            None,
-        );
+        let result = create_worktree(dir.path(), &worktree2_path, "feature/shared-branch", None);
 
         assert!(matches!(result, Err(WorktreeError::BranchInUse(_))));
 
@@ -673,13 +650,7 @@ mod tests {
         let worktree_path = dir.path().parent().unwrap().join("wt-to-prune");
 
         // Create a worktree
-        create_worktree(
-            dir.path(),
-            &worktree_path,
-            "feature/prune-test",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree_path, "feature/prune-test", None).unwrap();
 
         // Manually delete the worktree directory (simulating manual deletion)
         fs::remove_dir_all(&worktree_path).unwrap();
@@ -710,13 +681,7 @@ mod tests {
         let dir = create_test_repo();
         let worktree_path = dir.path().parent().unwrap().join("wt-is-worktree-test");
 
-        create_worktree(
-            dir.path(),
-            &worktree_path,
-            "story/3-4-test",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree_path, "story/3-4-test", None).unwrap();
 
         // Worktree has .git as a file
         assert!(is_worktree(&worktree_path));
@@ -742,13 +707,7 @@ mod tests {
         let dir = create_test_repo();
         let worktree_path = dir.path().parent().unwrap().join("wt-branch-test");
 
-        create_worktree(
-            dir.path(),
-            &worktree_path,
-            "story/3-4-test-feature",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree_path, "story/3-4-test-feature", None).unwrap();
 
         let branch = get_current_branch(&worktree_path).unwrap();
         assert_eq!(branch, Some("story/3-4-test-feature".to_string()));
@@ -837,13 +796,7 @@ mod tests {
         let worktree_path = dir.path().parent().unwrap().join("wt-remove-test");
 
         // Create a worktree
-        create_worktree(
-            dir.path(),
-            &worktree_path,
-            "feature/remove-test",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree_path, "feature/remove-test", None).unwrap();
 
         assert!(worktree_path.exists());
 
@@ -859,13 +812,7 @@ mod tests {
         let worktree_path = dir.path().parent().unwrap().join("wt-dirty-remove");
 
         // Create a worktree
-        create_worktree(
-            dir.path(),
-            &worktree_path,
-            "feature/dirty-remove",
-            None,
-        )
-        .unwrap();
+        create_worktree(dir.path(), &worktree_path, "feature/dirty-remove", None).unwrap();
 
         // Make it dirty
         fs::write(worktree_path.join("dirty-file.txt"), "dirty content").unwrap();

@@ -284,8 +284,14 @@ Just a summary.
     fn test_extract_field_with_quotes() {
         let fm = "title: 'Single quoted'\nother: \"Double quoted\"";
 
-        assert_eq!(extract_field(fm, "title"), Some("Single quoted".to_string()));
-        assert_eq!(extract_field(fm, "other"), Some("Double quoted".to_string()));
+        assert_eq!(
+            extract_field(fm, "title"),
+            Some("Single quoted".to_string())
+        );
+        assert_eq!(
+            extract_field(fm, "other"),
+            Some("Double quoted".to_string())
+        );
     }
 
     #[test]
@@ -295,7 +301,11 @@ Just a summary.
         let result = extract_array_field(fm, "related_stories");
         assert_eq!(
             result,
-            Some(vec!["1-7".to_string(), "1-8".to_string(), "2-1".to_string()])
+            Some(vec![
+                "1-7".to_string(),
+                "1-8".to_string(),
+                "2-1".to_string()
+            ])
         );
     }
 

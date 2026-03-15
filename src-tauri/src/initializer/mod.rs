@@ -163,7 +163,12 @@ pub async fn initialize_project(
     validate_path(&path)?;
 
     // Step 1: Git initialization
-    emit_progress(&window, "git", InitStatus::Running, "Initializing Git repository...")?;
+    emit_progress(
+        &window,
+        "git",
+        InitStatus::Running,
+        "Initializing Git repository...",
+    )?;
 
     // Run in blocking task to not block the async runtime
     let git_path = path.clone();
@@ -171,7 +176,12 @@ pub async fn initialize_project(
 
     match git_result {
         Ok(Ok(())) => {
-            emit_progress(&window, "git", InitStatus::Complete, "Git repository initialized")?;
+            emit_progress(
+                &window,
+                "git",
+                InitStatus::Complete,
+                "Git repository initialized",
+            )?;
         }
         Ok(Err(e)) => {
             emit_progress(&window, "git", InitStatus::Failed, &e.to_string())?;
@@ -210,9 +220,8 @@ pub async fn initialize_project(
     }
 
     // Refresh project state after initialization
-    crate::project::refresh_project(path).map_err(|e| {
-        InitError::BmadInitFailed(format!("Failed to refresh project state: {}", e))
-    })
+    crate::project::refresh_project(path)
+        .map_err(|e| InitError::BmadInitFailed(format!("Failed to refresh project state: {}", e)))
 }
 
 /// Initializes only Git in the specified directory.
@@ -223,14 +232,24 @@ pub async fn init_git_only(
 ) -> Result<crate::project::Project, InitError> {
     validate_path(&path)?;
 
-    emit_progress(&window, "git", InitStatus::Running, "Initializing Git repository...")?;
+    emit_progress(
+        &window,
+        "git",
+        InitStatus::Running,
+        "Initializing Git repository...",
+    )?;
 
     let git_path = path.clone();
     let git_result = tokio::task::spawn_blocking(move || init_git(&git_path)).await;
 
     match git_result {
         Ok(Ok(())) => {
-            emit_progress(&window, "git", InitStatus::Complete, "Git repository initialized")?;
+            emit_progress(
+                &window,
+                "git",
+                InitStatus::Complete,
+                "Git repository initialized",
+            )?;
         }
         Ok(Err(e)) => {
             emit_progress(&window, "git", InitStatus::Failed, &e.to_string())?;
@@ -243,9 +262,8 @@ pub async fn init_git_only(
         }
     }
 
-    crate::project::refresh_project(path).map_err(|e| {
-        InitError::GitInitFailed(format!("Failed to refresh project state: {}", e))
-    })
+    crate::project::refresh_project(path)
+        .map_err(|e| InitError::GitInitFailed(format!("Failed to refresh project state: {}", e)))
 }
 
 /// Initializes only BMAD in the specified directory.
@@ -260,8 +278,7 @@ pub async fn init_bmad_only(
     emit_progress(&window, "bmad", InitStatus::Running, "Initializing BMAD...")?;
 
     let bmad_path = path.clone();
-    let bmad_result =
-        tokio::task::spawn_blocking(move || init_bmad(&bmad_path, &options)).await;
+    let bmad_result = tokio::task::spawn_blocking(move || init_bmad(&bmad_path, &options)).await;
 
     match bmad_result {
         Ok(Ok(())) => {
@@ -278,9 +295,8 @@ pub async fn init_bmad_only(
         }
     }
 
-    crate::project::refresh_project(path).map_err(|e| {
-        InitError::BmadInitFailed(format!("Failed to refresh project state: {}", e))
-    })
+    crate::project::refresh_project(path)
+        .map_err(|e| InitError::BmadInitFailed(format!("Failed to refresh project state: {}", e)))
 }
 
 #[cfg(test)]

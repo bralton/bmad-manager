@@ -19,9 +19,8 @@ pub fn init_git(path: &Path) -> Result<(), InitError> {
     }
 
     // Run git init
-    let output = run_command("git", &["init"], path).map_err(|e| {
-        InitError::GitInitFailed(format!("Failed to execute git command: {}", e))
-    })?;
+    let output = run_command("git", &["init"], path)
+        .map_err(|e| InitError::GitInitFailed(format!("Failed to execute git command: {}", e)))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

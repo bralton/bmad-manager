@@ -167,7 +167,8 @@ pub fn parse_sprint_status_content(content: &str) -> SprintStatus {
 
     // Sort epics by ID (numeric, handling decimals)
     epics.sort_by(|a, b| {
-        parse_epic_id_for_sort(&a.id).partial_cmp(&parse_epic_id_for_sort(&b.id))
+        parse_epic_id_for_sort(&a.id)
+            .partial_cmp(&parse_epic_id_for_sort(&b.id))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
@@ -354,13 +355,21 @@ development_status:
         let result = parse_sprint_status_content(content);
         assert_eq!(result.stories.len(), 5);
 
-        let story1 = result.stories.iter().find(|s| s.id == "1-1-scaffold").unwrap();
+        let story1 = result
+            .stories
+            .iter()
+            .find(|s| s.id == "1-1-scaffold")
+            .unwrap();
         assert_eq!(story1.status, StoryStatus::Done);
         assert_eq!(story1.epic_id, "1");
         assert_eq!(story1.story_number, 1);
         assert_eq!(story1.slug, "scaffold");
 
-        let story2 = result.stories.iter().find(|s| s.id == "2-1-parser").unwrap();
+        let story2 = result
+            .stories
+            .iter()
+            .find(|s| s.id == "2-1-parser")
+            .unwrap();
         assert_eq!(story2.status, StoryStatus::ReadyForDev);
     }
 
@@ -439,7 +448,11 @@ development_status:
         let result = parse_sprint_status_content(content);
         assert_eq!(result.stories.len(), 2);
 
-        let story1 = result.stories.iter().find(|s| s.id == "2.5-1-prep-work").unwrap();
+        let story1 = result
+            .stories
+            .iter()
+            .find(|s| s.id == "2.5-1-prep-work")
+            .unwrap();
         assert_eq!(story1.epic_id, "2.5");
         assert_eq!(story1.story_number, 1);
         assert_eq!(story1.slug, "prep-work");
@@ -496,7 +509,11 @@ development_status:
         assert_eq!(result.stories[5].id, "3-2-story-board-ui-kanban");
 
         // Verify specific statuses
-        let story = result.stories.iter().find(|s| s.id == "3-1-sprint-status-parser").unwrap();
+        let story = result
+            .stories
+            .iter()
+            .find(|s| s.id == "3-1-sprint-status-parser")
+            .unwrap();
         assert_eq!(story.status, StoryStatus::ReadyForDev);
 
         // Verify retrospective association
@@ -526,17 +543,29 @@ development_status:
         let result = parse_sprint_status_content(content);
         assert_eq!(result.bugs.len(), 3);
 
-        let bug1 = result.bugs.iter().find(|b| b.id == "bug-1-terminal-crash").unwrap();
+        let bug1 = result
+            .bugs
+            .iter()
+            .find(|b| b.id == "bug-1-terminal-crash")
+            .unwrap();
         assert_eq!(bug1.bug_number, 1);
         assert_eq!(bug1.slug, "terminal-crash");
         assert_eq!(bug1.status, StoryStatus::Backlog);
 
-        let bug2 = result.bugs.iter().find(|b| b.id == "bug-2-session-freeze").unwrap();
+        let bug2 = result
+            .bugs
+            .iter()
+            .find(|b| b.id == "bug-2-session-freeze")
+            .unwrap();
         assert_eq!(bug2.bug_number, 2);
         assert_eq!(bug2.slug, "session-freeze");
         assert_eq!(bug2.status, StoryStatus::InProgress);
 
-        let bug3 = result.bugs.iter().find(|b| b.id == "bug-3-worktree-error").unwrap();
+        let bug3 = result
+            .bugs
+            .iter()
+            .find(|b| b.id == "bug-3-worktree-error")
+            .unwrap();
         assert_eq!(bug3.bug_number, 3);
         assert_eq!(bug3.slug, "worktree-error");
         assert_eq!(bug3.status, StoryStatus::Done);
@@ -647,14 +676,22 @@ development_status:
         let result = parse_sprint_status_content(content);
 
         // Regular story: slug contains hyphens
-        let story1 = result.stories.iter().find(|s| s.id == "1-5-claude-cli-spawn-pty").unwrap();
+        let story1 = result
+            .stories
+            .iter()
+            .find(|s| s.id == "1-5-claude-cli-spawn-pty")
+            .unwrap();
         assert_eq!(story1.epic_id, "1");
         assert_eq!(story1.story_number, 5);
         assert_eq!(story1.sub_story_number, None);
         assert_eq!(story1.slug, "claude-cli-spawn-pty");
 
         // Sub-story: 1-5-2 means epic 1, story 5.2
-        let story2 = result.stories.iter().find(|s| s.id == "1-5-2-terminate-lock-optimization").unwrap();
+        let story2 = result
+            .stories
+            .iter()
+            .find(|s| s.id == "1-5-2-terminate-lock-optimization")
+            .unwrap();
         assert_eq!(story2.epic_id, "1");
         assert_eq!(story2.story_number, 5);
         assert_eq!(story2.sub_story_number, Some(2));

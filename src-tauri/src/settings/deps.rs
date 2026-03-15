@@ -41,7 +41,12 @@ fn parse_git_version(output: &str) -> Option<String> {
     // "git version 2.39.0" -> "2.39.0"
     output
         .split_whitespace()
-        .find(|s| s.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false))
+        .find(|s| {
+            s.chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+        })
         .map(|s| s.to_string())
 }
 
@@ -94,7 +99,9 @@ pub fn check_git() -> DependencyStatus {
             name: "Git".to_string(),
             installed: false,
             version: None,
-            install_command: Some("Install via your OS package manager (apt, brew, chocolatey)".to_string()),
+            install_command: Some(
+                "Install via your OS package manager (apt, brew, chocolatey)".to_string(),
+            ),
             min_version: None,
             version_ok: false,
         },
@@ -200,10 +207,7 @@ mod tests {
 
     #[test]
     fn test_parse_claude_version() {
-        assert_eq!(
-            parse_claude_version("1.0.0"),
-            Some("1.0.0".to_string())
-        );
+        assert_eq!(parse_claude_version("1.0.0"), Some("1.0.0".to_string()));
         assert_eq!(
             parse_claude_version("claude-code 1.2.3"),
             Some("1.2.3".to_string())

@@ -250,8 +250,8 @@ pub fn start_file_watcher(
     watchers.remove(&window_label);
 
     // Create new watcher for this window
-    let watcher = BmadWatcher::new(PathBuf::from(&project_path), app_handle)
-        .map_err(|e| e.to_string())?;
+    let watcher =
+        BmadWatcher::new(PathBuf::from(&project_path), app_handle).map_err(|e| e.to_string())?;
 
     watchers.insert(window_label, watcher);
     Ok(())
@@ -294,7 +294,8 @@ mod tests {
 
     #[test]
     fn test_classify_event_sprint_status() {
-        let path = PathBuf::from("/project/_bmad-output/implementation-artifacts/sprint-status.yaml");
+        let path =
+            PathBuf::from("/project/_bmad-output/implementation-artifacts/sprint-status.yaml");
         let event = BmadWatcher::classify_event(&path);
         assert!(matches!(event, WatchEvent::StoryStatusChanged));
     }
@@ -395,7 +396,9 @@ mod tests {
     #[test]
     fn test_event_names() {
         assert_eq!(
-            BmadWatcher::event_name(&WatchEvent::ArtifactModified { path: "test".to_string() }),
+            BmadWatcher::event_name(&WatchEvent::ArtifactModified {
+                path: "test".to_string()
+            }),
             "artifact-modified"
         );
         assert_eq!(
@@ -407,7 +410,9 @@ mod tests {
             "story-status-changed"
         );
         assert_eq!(
-            BmadWatcher::event_name(&WatchEvent::WatcherError { message: "test".to_string() }),
+            BmadWatcher::event_name(&WatchEvent::WatcherError {
+                message: "test".to_string()
+            }),
             "watcher-error"
         );
     }

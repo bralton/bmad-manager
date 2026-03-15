@@ -103,8 +103,7 @@ pub fn init_db(path: &Path) -> Result<Connection, DbError> {
             .map_err(|e| DbError::DirectoryCreationFailed(e.to_string()))?;
     }
 
-    let conn =
-        Connection::open(path).map_err(|e| DbError::ConnectionFailed(e.to_string()))?;
+    let conn = Connection::open(path).map_err(|e| DbError::ConnectionFailed(e.to_string()))?;
 
     // Create sessions table
     conn.execute(
@@ -126,7 +125,10 @@ pub fn init_db(path: &Path) -> Result<Connection, DbError> {
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN resumed_at TEXT", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN claude_session_id TEXT", []);
     // Backfill any null claude_session_id with the session id (won't be valid UUID but prevents nulls)
-    let _ = conn.execute("UPDATE sessions SET claude_session_id = id WHERE claude_session_id IS NULL", []);
+    let _ = conn.execute(
+        "UPDATE sessions SET claude_session_id = id WHERE claude_session_id IS NULL",
+        [],
+    );
 
     // Create indexes for efficient queries
     conn.execute(
@@ -187,7 +189,10 @@ pub fn init_db(path: &Path) -> Result<Connection, DbError> {
 
     // Rebuild FTS5 index to populate with existing sessions
     // This is idempotent and ensures the index is up-to-date on every startup
-    conn.execute("INSERT INTO sessions_fts(sessions_fts) VALUES('rebuild')", [])?;
+    conn.execute(
+        "INSERT INTO sessions_fts(sessions_fts) VALUES('rebuild')",
+        [],
+    )?;
 
     // Create worktree_bindings table for story-to-worktree associations
     conn.execute(
@@ -532,7 +537,10 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse datetime '{}': {}. Using current time.", s, e);
+            eprintln!(
+                "Warning: Failed to parse datetime '{}': {}. Using current time.",
+                s, e
+            );
             Utc::now()
         })
 }
@@ -646,7 +654,10 @@ pub fn get_worktree_binding_by_path(
 
 /// Removes a worktree binding by worktree path.
 /// Returns true if a binding was removed.
-pub fn remove_worktree_binding_by_path(conn: &Connection, worktree_path: &str) -> Result<bool, DbError> {
+pub fn remove_worktree_binding_by_path(
+    conn: &Connection,
+    worktree_path: &str,
+) -> Result<bool, DbError> {
     let rows_affected = conn.execute(
         "DELETE FROM worktree_bindings WHERE worktree_path = ?1",
         params![worktree_path],
@@ -868,7 +879,10 @@ mod tests {
 
         // Resume the session
         let result = resume_session(&conn, &session.id).unwrap();
-        assert!(result, "resume_session should return true for existing session");
+        assert!(
+            result,
+            "resume_session should return true for existing session"
+        );
 
         // Verify status changed to active and resumed_at is set
         let retrieved = get_session_by_id(&conn, &session.id).unwrap().unwrap();
@@ -882,7 +896,10 @@ mod tests {
 
         // Try to resume a session that doesn't exist
         let result = resume_session(&conn, "nonexistent-session-id").unwrap();
-        assert!(!result, "resume_session should return false for nonexistent session");
+        assert!(
+            !result,
+            "resume_session should return false for nonexistent session"
+        );
     }
 
     #[test]
@@ -901,7 +918,10 @@ mod tests {
 
         // Mark active sessions as interrupted
         let count = mark_active_sessions_interrupted(&conn).unwrap();
-        assert_eq!(count, 2, "Should have marked 2 active sessions as interrupted");
+        assert_eq!(
+            count, 2,
+            "Should have marked 2 active sessions as interrupted"
+        );
 
         // Verify statuses
         let s1 = get_session_by_id(&conn, &session1.id).unwrap().unwrap();
@@ -910,7 +930,11 @@ mod tests {
 
         assert_eq!(s1.status, SessionStatus::Interrupted);
         assert_eq!(s2.status, SessionStatus::Interrupted);
-        assert_eq!(s3.status, SessionStatus::Completed, "Completed session should remain completed");
+        assert_eq!(
+            s3.status,
+            SessionStatus::Completed,
+            "Completed session should remain completed"
+        );
     }
 
     #[test]
@@ -1077,11 +1101,8 @@ mod tests {
         let (_temp_dir, conn) = setup_test_db();
 
         // Verify FTS5 virtual table exists by querying it
-        let result: Result<i64, _> = conn.query_row(
-            "SELECT COUNT(*) FROM sessions_fts",
-            [],
-            |row| row.get(0),
-        );
+        let result: Result<i64, _> =
+            conn.query_row("SELECT COUNT(*) FROM sessions_fts", [], |row| row.get(0));
         assert!(result.is_ok(), "sessions_fts table should exist");
         assert_eq!(result.unwrap(), 0);
     }
@@ -1240,7 +1261,11 @@ mod tests {
                 claude_session_id: uuid::Uuid::new_v4().to_string(),
                 project_path: format!("/project/{}", i % 10),
                 agent: format!("agent{}", i % 5),
-                workflow: if i % 2 == 0 { Some("workflow".to_string()) } else { None },
+                workflow: if i % 2 == 0 {
+                    Some("workflow".to_string())
+                } else {
+                    None
+                },
                 started_at: Utc::now(),
                 last_active: Utc::now() - chrono::Duration::seconds(i as i64),
                 status: SessionStatus::Active,
@@ -1257,7 +1282,11 @@ mod tests {
         // Should find 100 sessions (500 / 5 agents)
         assert_eq!(results.len(), 100);
         // Should complete in under 100ms (per AC6)
-        assert!(elapsed.as_millis() < 100, "FTS5 search took too long: {:?}", elapsed);
+        assert!(
+            elapsed.as_millis() < 100,
+            "FTS5 search took too long: {:?}",
+            elapsed
+        );
     }
 
     #[test]
@@ -1323,7 +1352,8 @@ mod tests {
         assert_eq!(result.match_count, 2);
 
         // Search with project filter
-        let result = search_sessions_enhanced(&conn, "architect", Some("/project/one"), 10).unwrap();
+        let result =
+            search_sessions_enhanced(&conn, "architect", Some("/project/one"), 10).unwrap();
         assert_eq!(result.match_count, 1);
         assert_eq!(result.sessions[0].project_path, "/project/one");
     }
