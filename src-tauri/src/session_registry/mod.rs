@@ -9,7 +9,7 @@ pub use db::{DbError, SearchResult, SessionRecord, SessionStatus, WorktreeBindin
 
 use chrono::Utc;
 use rusqlite::Connection;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 /// Global session database instance.
@@ -22,7 +22,7 @@ pub struct SessionDb {
 
 impl SessionDb {
     /// Creates a new SessionDb with a connection to the given path.
-    fn new(path: &PathBuf) -> Result<Self, DbError> {
+    fn new(path: &Path) -> Result<Self, DbError> {
         let conn = db::init_db(path)?;
         Ok(Self {
             conn: Mutex::new(conn),

@@ -207,8 +207,8 @@ fn extract_story_id(filename: &str) -> Option<String> {
 fn extract_title_from_content(content: &str, filename: &str) -> String {
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("# ") {
-            return trimmed[2..].trim().to_string();
+        if let Some(title) = trimmed.strip_prefix("# ") {
+            return title.trim().to_string();
         }
     }
 

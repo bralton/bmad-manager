@@ -119,7 +119,7 @@ pub enum InitError {
 }
 
 /// Validates that a path exists and is a directory.
-pub fn validate_path(path: &PathBuf) -> Result<(), InitError> {
+pub fn validate_path(path: &Path) -> Result<(), InitError> {
     if !path.exists() {
         return Err(InitError::PathNotFound(path.display().to_string()));
     }

@@ -73,7 +73,7 @@ impl PtyManager {
     pub async fn read_output(&self) -> Result<Vec<u8>, ProcessError> {
         let master = self.master.lock().await;
         let mut reader = master.try_clone_reader().map_err(|e| {
-            ProcessError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
+            ProcessError::IoError(std::io::Error::other(e))
         })?;
 
         // Read in a separate task to avoid blocking
@@ -90,7 +90,7 @@ impl PtyManager {
             }
         })
         .await
-        .map_err(|e| ProcessError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| ProcessError::IoError(std::io::Error::other(e)))?;
 
         result
     }
@@ -104,7 +104,7 @@ impl PtyManager {
         if writer_guard.is_none() {
             let master = self.master.lock().await;
             let new_writer = master.take_writer().map_err(|e| {
-                ProcessError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
+                ProcessError::IoError(std::io::Error::other(e))
             })?;
             *writer_guard = Some(new_writer);
         }
@@ -141,7 +141,7 @@ impl PtyManager {
         let mut child = self.child.lock().await;
         child
             .kill()
-            .map_err(|e| ProcessError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e)))
+            .map_err(|e| ProcessError::IoError(std::io::Error::other(e)))
     }
 
     /// Resizes the PTY window.

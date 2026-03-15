@@ -169,7 +169,7 @@ async fn open_in_ide(file_path: String) -> Result<(), String> {
         .collect();
 
     // If no "." in args, append the file path
-    let args = if parts.iter().any(|&p| p == ".") {
+    let args = if parts.contains(&".") {
         args
     } else {
         let mut new_args = args;

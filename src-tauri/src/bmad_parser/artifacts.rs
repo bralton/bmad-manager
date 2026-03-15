@@ -229,7 +229,7 @@ pub fn scan_artifacts(dir: &Path) -> Vec<ArtifactMeta> {
         let path = entry.path();
 
         // Only process markdown files
-        if path.extension().map_or(false, |ext| ext == "md") {
+        if path.extension().is_some_and(|ext| ext == "md") {
             if let Some(meta) = parse_frontmatter(path) {
                 artifacts.push(meta);
             }
@@ -370,7 +370,7 @@ pub fn scan_implementation_items(dir: &Path) -> ImplementationItems {
         let path = entry.path();
 
         // Only process markdown files
-        if !path.extension().map_or(false, |ext| ext == "md") {
+        if path.extension().is_none_or(|ext| ext != "md") {
             continue;
         }
 

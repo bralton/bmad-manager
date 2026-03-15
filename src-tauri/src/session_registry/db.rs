@@ -10,6 +10,7 @@ use thiserror::Error;
 
 /// Errors that can occur during database operations.
 #[derive(Error, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum DbError {
     #[error("Database connection failed: {0}")]
     ConnectionFailed(String),

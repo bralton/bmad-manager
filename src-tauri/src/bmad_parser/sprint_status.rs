@@ -9,17 +9,14 @@ use std::path::Path;
 /// Epic status values from sprint-status.yaml.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum EpicStatus {
+    #[default]
     Backlog,
     InProgress,
     Done,
 }
 
-impl Default for EpicStatus {
-    fn default() -> Self {
-        EpicStatus::Backlog
-    }
-}
 
 // Note: StoryStatus is imported from artifacts.rs to avoid duplicate enum definitions.
 // Both story files (Status: line) and sprint-status.yaml use the same status values.
@@ -27,7 +24,9 @@ impl Default for EpicStatus {
 /// Retrospective status values from sprint-status.yaml.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum RetroStatus {
+    #[default]
     Optional,
     Done,
 }
@@ -46,11 +45,6 @@ pub struct Bug {
     pub status: StoryStatus,
 }
 
-impl Default for RetroStatus {
-    fn default() -> Self {
-        RetroStatus::Optional
-    }
-}
 
 /// Represents an epic with its status and optional retrospective.
 #[derive(Debug, Clone, Serialize, Deserialize)]

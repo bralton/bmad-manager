@@ -11,6 +11,7 @@ use std::path::Path;
 /// Parsed content sections from a story file.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct StoryContent {
     /// The user story text (from "## Story" section)
     pub story: Option<String>,
@@ -26,18 +27,6 @@ pub struct StoryContent {
     pub error: Option<String>,
 }
 
-impl Default for StoryContent {
-    fn default() -> Self {
-        Self {
-            story: None,
-            acceptance_criteria: None,
-            tasks: None,
-            dev_notes: None,
-            parsed: false,
-            error: None,
-        }
-    }
-}
 
 /// Reads and parses a story file into structured sections.
 ///
@@ -60,8 +49,10 @@ pub fn get_story_content(story_path: &Path) -> StoryContent {
 ///
 /// Exposed for testability without filesystem access.
 pub fn parse_story_content(content: &str) -> StoryContent {
-    let mut result = StoryContent::default();
-    result.parsed = true;
+    let mut result = StoryContent {
+        parsed: true,
+        ..Default::default()
+    };
 
     // Find all level-2 headers and their positions
     let sections = extract_sections(content);
@@ -98,8 +89,8 @@ fn extract_sections(content: &str) -> std::collections::HashMap<String, String> 
         let line = lines[i];
 
         // Check for level-2 header (## Section Name)
-        if line.starts_with("## ") {
-            let header_name = line[3..].trim().to_lowercase();
+        if let Some(header) = line.strip_prefix("## ") {
+            let header_name = header.trim().to_lowercase();
 
             // Find the content until the next level-2 header or end of file
             let mut section_lines = Vec::new();

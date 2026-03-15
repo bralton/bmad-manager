@@ -197,9 +197,9 @@ fn extract_file_path(item: &str) -> String {
     let item = item.trim();
 
     // Handle backtick-wrapped paths
-    if item.starts_with('`') {
-        if let Some(end) = item[1..].find('`') {
-            return item[1..=end].to_string();
+    if let Some(rest) = item.strip_prefix('`') {
+        if let Some(end) = rest.find('`') {
+            return rest[..end].to_string();
         }
     }
 
@@ -218,7 +218,7 @@ fn extract_file_path(item: &str) -> String {
         .trim();
 
     // Remove any trailing punctuation
-    path.trim_end_matches(|c| c == ',' || c == ';' || c == ':')
+    path.trim_end_matches([',', ';', ':'])
         .to_string()
 }
 

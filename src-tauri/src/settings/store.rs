@@ -9,6 +9,7 @@ use thiserror::Error;
 
 /// Errors that can occur during settings operations.
 #[derive(Error, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum SettingsError {
     #[error("Failed to read settings file: {0}")]
     ReadError(String),

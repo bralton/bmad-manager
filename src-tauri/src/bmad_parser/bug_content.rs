@@ -10,6 +10,7 @@ use std::path::Path;
 /// Parsed content from a bug file.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct BugContent {
     /// Bug ID from frontmatter (e.g., "BUG-001")
     pub bug_id: Option<String>,
@@ -37,24 +38,6 @@ pub struct BugContent {
     pub error: Option<String>,
 }
 
-impl Default for BugContent {
-    fn default() -> Self {
-        Self {
-            bug_id: None,
-            title: None,
-            severity: None,
-            priority: None,
-            status: None,
-            reported_by: None,
-            reported_date: None,
-            related_stories: None,
-            summary: None,
-            body: None,
-            parsed: false,
-            error: None,
-        }
-    }
-}
 
 /// Reads and parses a bug file into structured sections.
 ///
@@ -77,8 +60,10 @@ pub fn get_bug_content(bug_path: &Path) -> BugContent {
 ///
 /// Exposed for testability without filesystem access.
 pub fn parse_bug_content(content: &str) -> BugContent {
-    let mut result = BugContent::default();
-    result.parsed = true;
+    let mut result = BugContent {
+        parsed: true,
+        ..Default::default()
+    };
 
     // Split frontmatter from body
     let (frontmatter, body) = extract_frontmatter(content);
