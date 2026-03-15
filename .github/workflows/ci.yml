@@ -91,7 +91,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/tauri-driver
-          key: tauri-driver-${{ runner.os }}-v1
+          key: tauri-driver-${{ runner.os }}-v2
 
       - name: Install system dependencies
         run: |
@@ -116,6 +116,8 @@ jobs:
 
       - name: Run E2E tests
         run: xvfb-run npm run test:e2e
+        env:
+          TAURI_DRIVER_STARTUP_DELAY: 3000
 
       - name: Upload E2E test results
         if: always()
