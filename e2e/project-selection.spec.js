@@ -226,7 +226,9 @@ describe('Project Selection Flow', () => {
 
       // Click the submit button (it says "Initialize BMAD" in the form)
       const submitButton = await $('button[type="submit"]');
-      await submitButton.click();
+      await submitButton.waitForDisplayed({ timeout: 5000 });
+      await browser.pause(500);
+      await browser.execute((el) => el.click(), submitButton);
 
       // Wait for initialization to complete (this can take a while due to npx)
       // Look for the "Fully Initialized" status using data-testid
