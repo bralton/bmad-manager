@@ -114,12 +114,22 @@ jobs:
       - name: Build debug binary for E2E tests
         run: npm run build:e2e-app
 
+      - name: Verify debug binary exists
+        run: |
+          ls -la src-tauri/target/debug/bmad-manager || echo "Binary not found!"
+          file src-tauri/target/debug/bmad-manager || true
+
       - name: Start tauri-driver
         run: |
+          echo "Starting tauri-driver..."
           ~/.cargo/bin/tauri-driver &
-          sleep 3
+          DRIVER_PID=$!
+          echo "tauri-driver PID: $DRIVER_PID"
+          sleep 5
+          # Verify it's running
+          ps aux | grep tauri-driver | grep -v grep || echo "tauri-driver not running!"
           # Verify it's listening
-          curl -s http://127.0.0.1:4444/status || echo "Driver may not be ready yet"
+          curl -v http://127.0.0.1:4444/status 2>&1 || echo "Status check failed"
 
       - name: Run E2E tests
         run: xvfb-run npm run test:e2e

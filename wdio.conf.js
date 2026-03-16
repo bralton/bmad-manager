@@ -163,6 +163,18 @@ export const config = {
    * Spawns the tauri-driver process (unless SKIP_TAURI_DRIVER_SPAWN is set).
    */
   onPrepare: async function () {
+    // Log the app binary path being used
+    const appPath = getAppBinaryPath();
+    console.log(`App binary path: ${appPath}`);
+
+    // Check if app binary exists
+    const fs = require('fs');
+    if (!fs.existsSync(appPath)) {
+      console.error(`App binary NOT FOUND at: ${appPath}`);
+    } else {
+      console.log(`App binary exists at: ${appPath}`);
+    }
+
     // In CI, tauri-driver is started externally
     if (process.env.SKIP_TAURI_DRIVER_SPAWN === 'true') {
       console.log('Skipping tauri-driver spawn (SKIP_TAURI_DRIVER_SPAWN=true)');
