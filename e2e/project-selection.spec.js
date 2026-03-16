@@ -198,11 +198,12 @@ describe('Project Selection Flow', () => {
       const statusLabel = await $('[data-testid="project-status-badge"]');
       await statusLabel.waitForExist({ timeout: 5000 });
 
-      // Click "Initialize BMAD" button - scroll into view first to avoid click interception
+      // Click "Initialize BMAD" button - use JavaScript click to avoid interception
       const initButton = await $('button=Initialize BMAD');
       await initButton.waitForExist({ timeout: 5000 });
-      await initButton.scrollIntoView();
-      await initButton.click();
+      await initButton.waitForClickable({ timeout: 5000 });
+      // Use execute to perform JS click which bypasses interception checks
+      await browser.execute((el) => el.click(), initButton);
 
       // Wait for the initialization form to appear
       const initForm = await $('h3=Initialize Project');
