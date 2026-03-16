@@ -198,10 +198,13 @@ describe('Project Selection Flow', () => {
       const statusLabel = await $('[data-testid="project-status-badge"]');
       await statusLabel.waitForExist({ timeout: 5000 });
 
-      // Click "Initialize BMAD" button - use JavaScript click to avoid interception
+      // Click "Initialize BMAD" button - wait for it to exist and use JS click
+      // Note: waitForClickable can fail due to overlay detection issues in webkit
       const initButton = await $('button=Initialize BMAD');
       await initButton.waitForExist({ timeout: 5000 });
-      await initButton.waitForClickable({ timeout: 5000 });
+      await initButton.waitForDisplayed({ timeout: 5000 });
+      // Small pause to allow any transitions to complete
+      await browser.pause(500);
       // Use execute to perform JS click which bypasses interception checks
       await browser.execute((el) => el.click(), initButton);
 
