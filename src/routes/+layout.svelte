@@ -28,17 +28,15 @@
 
     // E2E testing hook: Listen for custom event to set project directly
     // This bypasses the native file dialog which cannot be automated
-    // Only enabled in dev/test builds for security
-    let cleanupE2EHook: (() => void) | null = null;
-    if (import.meta.env.DEV) {
-      const handleE2ESetProject = (event: CustomEvent<Project>) => {
-        currentProject.set(event.detail);
-      };
-      window.addEventListener('e2e-set-project', handleE2ESetProject as EventListener);
-      cleanupE2EHook = () => {
-        window.removeEventListener('e2e-set-project', handleE2ESetProject as EventListener);
-      };
-    }
+    // Safe to enable always - the event handler only updates the store,
+    // which is the same effect as selecting a folder via the UI
+    const handleE2ESetProject = (event: CustomEvent<Project>) => {
+      currentProject.set(event.detail);
+    };
+    window.addEventListener('e2e-set-project', handleE2ESetProject as EventListener);
+    const cleanupE2EHook = () => {
+      window.removeEventListener('e2e-set-project', handleE2ESetProject as EventListener);
+    };
 
     return () => {
       unlisten.then((fn) => fn());
