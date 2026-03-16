@@ -119,13 +119,10 @@ export const config = {
   // ===================
   capabilities: [
     {
-      // Use 'wry' as the browser name for Tauri's webview
-      browserName: 'wry',
-      // Tauri-specific options
+      // Tauri-specific options - tauri-driver handles the browser type
       'tauri:options': {
         application: getAppBinaryPath(),
       },
-      // Only run one instance at a time
       maxInstances: 1,
     },
   ],
