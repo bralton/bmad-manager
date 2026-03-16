@@ -160,9 +160,15 @@ export const config = {
 
   /**
    * Gets executed before test execution begins.
-   * Spawns the tauri-driver process.
+   * Spawns the tauri-driver process (unless SKIP_TAURI_DRIVER_SPAWN is set).
    */
   onPrepare: async function () {
+    // In CI, tauri-driver is started externally
+    if (process.env.SKIP_TAURI_DRIVER_SPAWN === 'true') {
+      console.log('Skipping tauri-driver spawn (SKIP_TAURI_DRIVER_SPAWN=true)');
+      return;
+    }
+
     const driverPath = getTauriDriverPath();
     console.log(`Starting tauri-driver from: ${driverPath}`);
 

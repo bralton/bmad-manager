@@ -114,8 +114,17 @@ jobs:
       - name: Build debug binary for E2E tests
         run: npm run build:e2e-app
 
+      - name: Start tauri-driver
+        run: |
+          ~/.cargo/bin/tauri-driver &
+          sleep 3
+          # Verify it's listening
+          curl -s http://127.0.0.1:4444/status || echo "Driver may not be ready yet"
+
       - name: Run E2E tests
         run: xvfb-run npm run test:e2e
+        env:
+          SKIP_TAURI_DRIVER_SPAWN: true
 
       - name: Upload E2E test results
         if: always()
