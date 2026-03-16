@@ -15,6 +15,7 @@
 
 import { spawn } from 'child_process';
 import { createConnection } from 'net';
+import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
@@ -168,7 +169,6 @@ export const config = {
     console.log(`App binary path: ${appPath}`);
 
     // Check if app binary exists
-    const fs = require('fs');
     if (!fs.existsSync(appPath)) {
       console.error(`App binary NOT FOUND at: ${appPath}`);
     } else {
@@ -185,7 +185,6 @@ export const config = {
     console.log(`Starting tauri-driver from: ${driverPath}`);
 
     // Check if tauri-driver binary exists
-    const fs = require('fs');
     if (!fs.existsSync(driverPath)) {
       throw new Error(
         `tauri-driver not found at ${driverPath}. ` +
