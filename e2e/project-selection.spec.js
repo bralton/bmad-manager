@@ -55,9 +55,10 @@ describe('Project Selection Flow', () => {
       await agentsHeader.waitForExist({ timeout: 5000 });
       await expect(agentsHeader).toBeDisplayed();
 
-      // Verify empty state message is shown
-      const emptyState = await $('*=No agents found');
-      await expect(emptyState).toBeDisplayed();
+      // Verify empty state message is shown - look for h3 inside EmptyState component
+      const emptyStateTitle = await $('h3=No agents found');
+      await emptyStateTitle.waitForExist({ timeout: 5000 });
+      await expect(emptyStateTitle).toBeDisplayed();
     });
   });
 
@@ -75,13 +76,12 @@ describe('Project Selection Flow', () => {
         window.dispatchEvent(new CustomEvent('e2e-set-project', { detail: project }));
       }, projectPath);
 
-      // Wait for project info to appear
-      const projectName = await $('h2=test-bmad-project');
-      await projectName.waitForExist({ timeout: 10000 });
-      await expect(projectName).toBeDisplayed();
+      // Wait for project info bar to appear
+      const projectInfoBar = await $('[data-testid="project-info-bar"]');
+      await projectInfoBar.waitForExist({ timeout: 10000 });
 
-      // Verify "Fully Initialized" status label
-      const statusLabel = await $('span.text-green-400');
+      // Verify "Fully Initialized" status label using data-testid
+      const statusLabel = await $('[data-testid="project-status-badge"]');
       await statusLabel.waitForExist({ timeout: 5000 });
       const statusText = await statusLabel.getText();
       await expect(statusText).toBe('Fully Initialized');
@@ -125,12 +125,12 @@ describe('Project Selection Flow', () => {
         window.dispatchEvent(new CustomEvent('e2e-set-project', { detail: project }));
       }, projectPath);
 
-      // Wait for project info to appear - project name derived from folder name
-      const projectSection = await $('h2.text-xl');
-      await projectSection.waitForExist({ timeout: 10000 });
+      // Wait for project info bar to appear
+      const projectInfoBar = await $('[data-testid="project-info-bar"]');
+      await projectInfoBar.waitForExist({ timeout: 10000 });
 
-      // Verify "Git Only" status label (yellow color for git-only)
-      const statusLabel = await $('span.text-yellow-400');
+      // Verify "Git Only" status label using data-testid
+      const statusLabel = await $('[data-testid="project-status-badge"]');
       await statusLabel.waitForExist({ timeout: 5000 });
       const statusText = await statusLabel.getText();
       await expect(statusText).toBe('Git Only');
@@ -153,12 +153,12 @@ describe('Project Selection Flow', () => {
         window.dispatchEvent(new CustomEvent('e2e-set-project', { detail: project }));
       }, projectPath);
 
-      // Wait for project info to appear
-      const projectSection = await $('h2.text-xl');
-      await projectSection.waitForExist({ timeout: 10000 });
+      // Wait for project info bar to appear
+      const projectInfoBar = await $('[data-testid="project-info-bar"]');
+      await projectInfoBar.waitForExist({ timeout: 10000 });
 
-      // Verify "Empty" status label (gray color for empty)
-      const statusLabel = await $('span.text-gray-400');
+      // Verify "Empty" status label using data-testid
+      const statusLabel = await $('[data-testid="project-status-badge"]');
       await statusLabel.waitForExist({ timeout: 5000 });
       const statusText = await statusLabel.getText();
       await expect(statusText).toBe('Empty');
@@ -190,13 +190,18 @@ describe('Project Selection Flow', () => {
         window.dispatchEvent(new CustomEvent('e2e-set-project', { detail: project }));
       }, projectPath);
 
-      // Wait for project info to appear
-      const statusLabel = await $('span.text-yellow-400');
-      await statusLabel.waitForExist({ timeout: 10000 });
+      // Wait for project info bar to appear
+      const projectInfoBar = await $('[data-testid="project-info-bar"]');
+      await projectInfoBar.waitForExist({ timeout: 10000 });
 
-      // Click "Initialize BMAD" button
+      // Verify Git Only status using data-testid
+      const statusLabel = await $('[data-testid="project-status-badge"]');
+      await statusLabel.waitForExist({ timeout: 5000 });
+
+      // Click "Initialize BMAD" button - scroll into view first to avoid click interception
       const initButton = await $('button=Initialize BMAD');
       await initButton.waitForExist({ timeout: 5000 });
+      await initButton.scrollIntoView();
       await initButton.click();
 
       // Wait for the initialization form to appear
@@ -220,11 +225,18 @@ describe('Project Selection Flow', () => {
       await submitButton.click();
 
       // Wait for initialization to complete (this can take a while due to npx)
-      // Look for the green "Fully Initialized" status
-      const fullyInitialized = await $('span.text-green-400');
-      await fullyInitialized.waitForExist({ timeout: 120000 }); // 2 minute timeout for npx
+      // Look for the "Fully Initialized" status using data-testid
+      const finalStatusLabel = await $('[data-testid="project-status-badge"]');
+      // Wait for the status to change to "Fully Initialized"
+      await browser.waitUntil(
+        async () => {
+          const text = await finalStatusLabel.getText();
+          return text === 'Fully Initialized';
+        },
+        { timeout: 120000, timeoutMsg: 'Expected status to be "Fully Initialized"' }
+      );
 
-      const finalStatus = await fullyInitialized.getText();
+      const finalStatus = await finalStatusLabel.getText();
       await expect(finalStatus).toBe('Fully Initialized');
 
       // Verify _bmad directory was created by checking via Tauri IPC

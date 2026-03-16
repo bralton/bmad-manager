@@ -52,6 +52,7 @@
 
     <!-- Status badge -->
     <span
+      data-testid="project-status-badge"
       class="text-xs px-2 py-0.5 rounded-full shrink-0 {getStateBadgeClass(project.state)}"
     >
       {getStateLabel(project.state)}
