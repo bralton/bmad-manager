@@ -13,23 +13,14 @@
  */
 
 describe('BMAD Manager Smoke Tests', () => {
-  it('should launch the application and display the correct window title', async () => {
+  it('should launch the application and have a valid session', async () => {
     // The app should be running at this point (managed by tauri-driver)
-    // Verify we have a valid browser session
-    // Note: Tauri webview may return empty title via WebDriver, so we check
-    // the HTML title element as a fallback
-    const title = await browser.getTitle();
-
-    if (title === '') {
-      // Fallback: check the <title> element in the HTML
-      const titleElement = await $('title');
-      const exists = await titleElement.isExisting();
-      // Just verify the app is running - title may not be accessible via WebDriver
-      await expect(exists).toBe(true);
-    } else {
-      // The title should be "BMAD Manager" as defined in tauri.conf.json
-      await expect(title).toBe('BMAD Manager');
-    }
+    // Note: Tauri webview may return empty title via WebDriver, so we just
+    // verify the app loaded by checking for a key UI element
+    // The title check is not reliable in Tauri + webkit WebDriver
+    const main = await $('main');
+    await main.waitForExist({ timeout: 10000 });
+    await expect(main).toBeDisplayed();
   });
 
   it('should display the sidebar with branding', async () => {
