@@ -119,20 +119,32 @@ jobs:
           ls -la src-tauri/target/debug/bmad-manager || echo "Binary not found!"
           file src-tauri/target/debug/bmad-manager || true
 
-      - name: Start tauri-driver
+      - name: Run E2E tests with Xvfb
         run: |
+          # Start Xvfb on display :99
+          Xvfb :99 -screen 0 1280x1024x24 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          echo "Xvfb started with PID: $XVFB_PID, DISPLAY=$DISPLAY"
+          sleep 2
+
+          # Start tauri-driver with the display available
           echo "Starting tauri-driver..."
           ~/.cargo/bin/tauri-driver &
           DRIVER_PID=$!
           echo "tauri-driver PID: $DRIVER_PID"
-          sleep 5
-          # Verify it's running
-          ps aux | grep tauri-driver | grep -v grep || echo "tauri-driver not running!"
-          # Verify it's listening
-          curl -v http://127.0.0.1:4444/status 2>&1 || echo "Status check failed"
+          sleep 3
 
-      - name: Run E2E tests
-        run: xvfb-run npm run test:e2e
+          # Verify tauri-driver is running and listening
+          ps aux | grep tauri-driver | grep -v grep || echo "tauri-driver not running!"
+          curl -s http://127.0.0.1:4444/status || echo "Status check failed"
+
+          # Run E2E tests
+          npm run test:e2e
+
+          # Cleanup
+          kill $DRIVER_PID 2>/dev/null || true
+          kill $XVFB_PID 2>/dev/null || true
         env:
           SKIP_TAURI_DRIVER_SPAWN: true
 
