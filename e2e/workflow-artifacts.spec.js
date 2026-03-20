@@ -263,7 +263,8 @@ describe('Workflow and Artifact Viewing', () => {
 
       // Verify Epic Workflow content is shown
       // Should show epic selector or epic workflow stages
-      const epicContent = await $('*=Epic');
+      // Use specific element type (button/span/div) with partial text match
+      const epicContent = await $('button*=Epic');
       await epicContent.waitForExist({ timeout: 5000 });
       await expect(epicContent).toBeDisplayed();
     });
