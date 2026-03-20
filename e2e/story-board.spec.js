@@ -155,8 +155,9 @@ describe('Story Board Navigation', () => {
         { timeout: 10000 }
       );
 
-      // Click the first story card
-      const storyCard = await $('button[aria-label^="Story"]');
+      // Click a specific story card (1-1) to ensure consistent behavior
+      // Using a known story ID avoids issues with which card appears first
+      const storyCard = await $('button[aria-label*="1-1"]');
       await storyCard.waitForDisplayed({ timeout: 5000 });
       await browser.execute((el) => el.click(), storyCard);
 
@@ -171,18 +172,22 @@ describe('Story Board Navigation', () => {
       const panelTitle = await detailPanel.$('h2#story-detail-title');
       await panelTitle.waitForExist({ timeout: 5000 });
 
+      // Wait for panel content to settle (animation + Svelte reactivity)
+      await browser.pause(300);
+
       // Wait for text content to be populated (Svelte hydration)
       await browser.waitUntil(
         async () => {
           const text = await panelTitle.getText();
-          return text.length > 0;
+          return text.length > 0 && text.includes('Story');
         },
-        { timeout: 5000, timeoutMsg: 'Panel title text not populated' }
+        { timeout: 5000, timeoutMsg: 'Panel title text not populated with Story' }
       );
 
       const titleText = await panelTitle.getText();
-      // Title should contain "Story" and an ID (format: "Story X-X")
+      // Title should contain "Story 1-1"
       await expect(titleText).toContain('Story');
+      await expect(titleText).toContain('1-1');
     });
 
     it('should close detail panel when clicking close button', async () => {
