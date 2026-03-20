@@ -176,12 +176,11 @@ describe('Project Selection Flow', () => {
      * `npx bmad-method@6`. It validates BUG-004 fix (invalid --project-name flag).
      *
      * This test may take 30-60+ seconds due to npx package download.
-     * Skipped in CI due to network dependency and timing variability.
-     * Run locally with: npm run test:e2e
+     * Extended timeout (180s) to accommodate npm registry access.
      */
-    // Skip in CI - this test is network-dependent and can exceed Mocha timeouts
-    const testFn = process.env.CI ? it.skip : it;
-    testFn('should initialize BMAD in git-only folder and show Fully Initialized status', async () => {
+    it('should initialize BMAD in git-only folder and show Fully Initialized status', async function () {
+      // Allow 3 minutes for npx download + initialization
+      this.timeout(180000);
       // Copy git-only fixture to temp
       const projectPath = copyFixtureToTemp(FIXTURES.GIT_ONLY_PROJECT);
       tempDirs.push(projectPath);
