@@ -156,36 +156,22 @@ describe('Story Board Navigation', () => {
       );
 
       // Click a specific story card (1-1) to ensure consistent behavior
-      // Using a known story ID avoids issues with which card appears first
       const storyCard = await $('button[aria-label*="1-1"]');
       await storyCard.waitForDisplayed({ timeout: 5000 });
       await browser.execute((el) => el.click(), storyCard);
 
       // Wait for detail panel to open
-      // The panel is a dialog with role="dialog"
       const detailPanel = await $('div[role="dialog"]');
       await detailPanel.waitForExist({ timeout: 5000 });
       await expect(detailPanel).toBeDisplayed();
 
-      // Panel should have a title with id="story-detail-title"
-      // Wait for the h2 with specific id to ensure content is rendered
+      // Verify panel title shows story ID
+      // Use browser.execute to get text directly (getText() unreliable in wry/WebKit)
       const panelTitle = await detailPanel.$('h2#story-detail-title');
       await panelTitle.waitForExist({ timeout: 5000 });
 
-      // Wait for panel content to settle (animation + Svelte reactivity)
-      await browser.pause(300);
-
-      // Wait for text content to be populated (Svelte hydration)
-      await browser.waitUntil(
-        async () => {
-          const text = await panelTitle.getText();
-          return text.length > 0 && text.includes('Story');
-        },
-        { timeout: 5000, timeoutMsg: 'Panel title text not populated with Story' }
-      );
-
-      const titleText = await panelTitle.getText();
-      // Title should contain "Story 1-1"
+      // Get text content directly from DOM
+      const titleText = await browser.execute((el) => el.textContent, panelTitle);
       await expect(titleText).toContain('Story');
       await expect(titleText).toContain('1-1');
     });
