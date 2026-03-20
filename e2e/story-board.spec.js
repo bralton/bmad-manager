@@ -166,11 +166,22 @@ describe('Story Board Navigation', () => {
       await detailPanel.waitForExist({ timeout: 5000 });
       await expect(detailPanel).toBeDisplayed();
 
-      // Panel should have a title
-      const panelTitle = await detailPanel.$('h2');
+      // Panel should have a title with id="story-detail-title"
+      // Wait for the h2 with specific id to ensure content is rendered
+      const panelTitle = await detailPanel.$('h2#story-detail-title');
       await panelTitle.waitForExist({ timeout: 5000 });
+
+      // Wait for text content to be populated (Svelte hydration)
+      await browser.waitUntil(
+        async () => {
+          const text = await panelTitle.getText();
+          return text.length > 0;
+        },
+        { timeout: 5000, timeoutMsg: 'Panel title text not populated' }
+      );
+
       const titleText = await panelTitle.getText();
-      // Title should contain "Story" and an ID
+      // Title should contain "Story" and an ID (format: "Story X-X")
       await expect(titleText).toContain('Story');
     });
 
@@ -221,20 +232,11 @@ describe('Story Board Navigation', () => {
       );
 
       // Click on a story that has a file (story 1-1 which is done)
-      // Look for the 1-1 card specifically
-      const storyIdDisplay = await $('span.font-mono=1-1');
-      await storyIdDisplay.waitForExist({ timeout: 5000 });
-      // Click the parent button (the story card)
-      const storyCard = await storyIdDisplay.$('..');
-      // Navigate up to the button element
-      const cardButton = await storyCard.$('ancestor::button');
-      if (await cardButton.isExisting()) {
-        await browser.execute((el) => el.click(), cardButton);
-      } else {
-        // Fallback: find button containing 1-1
-        const card = await $('button[aria-label*="1-1"]');
-        await browser.execute((el) => el.click(), card);
-      }
+      // Use aria-label to find the button directly
+      const card = await $('button[aria-label*="1-1"]');
+      await card.waitForExist({ timeout: 5000 });
+      await card.waitForDisplayed({ timeout: 5000 });
+      await browser.execute((el) => el.click(), card);
 
       // Wait for panel
       const detailPanel = await $('div[role="dialog"]');
@@ -260,9 +262,10 @@ describe('Story Board Navigation', () => {
       await browser.pause(500);
 
       // Look for epic row indicators
-      // Epics are displayed as row headers with format "Epic N: Title"
-      // The EpicRow component shows epic info
-      const epicText = await $('*=Epic 1');
+      // Epics are displayed as row headers with format "Epic N:" or "Epic N"
+      // The EpicRow component shows epic info in a span with class text-gray-200
+      // Use contains text match for span elements
+      const epicText = await $('span.text-gray-200*=Epic 1');
       await epicText.waitForExist({ timeout: 5000 });
       await expect(epicText).toBeDisplayed();
     });
