@@ -172,14 +172,10 @@ describe('Project Selection Flow', () => {
 
   describe('BMAD Initialization', () => {
     /**
-     * SKIPPED IN CI: bmad-method install takes 5+ minutes in CI due to
-     * template downloads. The UI flow (form, submit) works - the external
-     * npx command is just too slow.
-     *
-     * Run locally: npm run test:e2e
+     * Tests real BMAD initialization via npx bmad-method@6.
+     * Takes 3-5 minutes in CI due to npm download + template install.
      */
-    const testFn = process.env.CI ? it.skip : it;
-    testFn('should initialize BMAD in git-only folder and show Fully Initialized status', async function () {
+    it('should initialize BMAD in git-only folder and show Fully Initialized status', async function () {
       // Copy git-only fixture to temp
       const projectPath = copyFixtureToTemp(FIXTURES.GIT_ONLY_PROJECT);
       tempDirs.push(projectPath);
@@ -233,13 +229,13 @@ describe('Project Selection Flow', () => {
 
       // Wait for initialization to complete (this can take a while due to npx)
       // First, wait for the init dialog to close (indicates command finished)
-      // 280s timeout - bmad-method install includes template downloads
+      // 5 min timeout - bmad-method install downloads templates from npm
       await browser.waitUntil(
         async () => {
           const dialog = await $('h3=Initialize Project');
           return !(await dialog.isExisting());
         },
-        { timeout: 280000, timeoutMsg: 'Init dialog never closed - command may have failed' }
+        { timeout: 300000, timeoutMsg: 'Init dialog never closed after 5 min - npx bmad-method may have failed' }
       );
 
       // Small pause to let UI refresh after command completes
