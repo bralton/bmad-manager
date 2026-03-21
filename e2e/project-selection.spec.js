@@ -228,14 +228,28 @@ describe('Project Selection Flow', () => {
       await browser.execute((el) => el.click(), submitButton);
 
       // Wait for initialization to complete (this can take a while due to npx)
-      // First, wait for the init dialog to close (indicates command finished)
-      // 5 min timeout - bmad-method install downloads templates from npm
+      // Check periodically and log any error messages that appear
+      let lastCheck = Date.now();
       await browser.waitUntil(
         async () => {
           const dialog = await $('h3=Initialize Project');
-          return !(await dialog.isExisting());
+          const dialogExists = await dialog.isExisting();
+
+          // Log progress every 30 seconds
+          if (Date.now() - lastCheck > 30000) {
+            lastCheck = Date.now();
+            // Check for error messages in the dialog
+            const errorEl = await $('div.text-red-500');
+            if (await errorEl.isExisting()) {
+              const errorText = await browser.execute((el) => el.textContent, errorEl);
+              console.log('Error in dialog:', errorText);
+            }
+            console.log('Dialog still open, waiting for init to complete...');
+          }
+
+          return !dialogExists;
         },
-        { timeout: 300000, timeoutMsg: 'Init dialog never closed after 5 min - npx bmad-method may have failed' }
+        { timeout: 300000, timeoutMsg: 'Init dialog never closed after 5 min - check logs for errors' }
       );
 
       // Small pause to let UI refresh after command completes
