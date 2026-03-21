@@ -133,7 +133,7 @@ export const config = {
   framework: 'mocha',
   mochaOpts: {
     ui: 'bdd',
-    timeout: 180000, // 3 minutes - BMAD init test runs npx which takes time
+    timeout: 300000, // 5 minutes - BMAD init test runs npx which takes time
   },
 
   // ===================
