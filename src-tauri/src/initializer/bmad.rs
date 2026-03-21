@@ -26,7 +26,7 @@ pub fn init_bmad(path: &Path, options: &InitOptions) -> Result<(), InitError> {
     // Convert path to string for CLI argument
     let path_str = path.to_string_lossy();
 
-    // Build the npx command arguments
+    // Build the npx command as a shell command string
     // bmad-method install CLI options:
     //   --directory <path>       Installation directory
     //   --modules <modules>      Comma-separated list of module IDs (e.g., "core", "bmm")
@@ -34,11 +34,13 @@ pub fn init_bmad(path: &Path, options: &InitOptions) -> Result<(), InitError> {
     //   --tools claude-code      Configure Claude Code integration for skills
     //   --yes                    Accept all defaults and skip prompts
     let module_arg = options.workflow_style.as_cli_arg();
+
+    // Build the npx command arguments
     let args = vec![
         "bmad-method@6",
         "install",
         "--directory",
-        &path_str,
+        &*path_str,
         "--modules",
         module_arg,
         "--user-name",

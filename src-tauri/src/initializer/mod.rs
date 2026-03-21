@@ -30,6 +30,9 @@ pub fn run_command(cmd: &str, args: &[&str], cwd: &Path) -> std::io::Result<Outp
         .args(args)
         .current_dir(cwd)
         .stdin(Stdio::null()) // Prevent hanging on stdin reads
+        .env("CI", "true") // Signal non-interactive environment
+        .env("NPM_CONFIG_YES", "true") // Auto-confirm npm prompts
+        .env("FORCE_COLOR", "0") // Disable ANSI colors
         .output()
         .or_else(|_| {
             Command::new("cmd")
@@ -37,6 +40,9 @@ pub fn run_command(cmd: &str, args: &[&str], cwd: &Path) -> std::io::Result<Outp
                 .args(args)
                 .current_dir(cwd)
                 .stdin(Stdio::null())
+                .env("CI", "true")
+                .env("NPM_CONFIG_YES", "true")
+                .env("FORCE_COLOR", "0")
                 .output()
         })
 }
@@ -47,6 +53,9 @@ pub fn run_command(cmd: &str, args: &[&str], cwd: &Path) -> std::io::Result<Outp
         .args(args)
         .current_dir(cwd)
         .stdin(Stdio::null()) // Prevent hanging on stdin reads
+        .env("CI", "true") // Signal non-interactive environment
+        .env("NPM_CONFIG_YES", "true") // Auto-confirm npm prompts
+        .env("FORCE_COLOR", "0") // Disable ANSI colors
         .output()
 }
 
