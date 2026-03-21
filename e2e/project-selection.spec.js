@@ -232,13 +232,13 @@ describe('Project Selection Flow', () => {
 
       // Wait for initialization to complete (this can take a while due to npx)
       // First, wait for the init dialog to close (indicates command finished)
-      // 240s timeout - npx download + bmad-method install can take time in CI
+      // 280s timeout - bmad-method install includes template downloads
       await browser.waitUntil(
         async () => {
           const dialog = await $('h3=Initialize Project');
           return !(await dialog.isExisting());
         },
-        { timeout: 240000, timeoutMsg: 'Init dialog never closed - command may have failed' }
+        { timeout: 280000, timeoutMsg: 'Init dialog never closed - command may have failed' }
       );
 
       // Small pause to let UI refresh after command completes
