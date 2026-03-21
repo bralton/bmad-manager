@@ -232,17 +232,26 @@ describe('Project Selection Flow', () => {
       await browser.execute((el) => el.click(), submitButton);
 
       // Wait for initialization to complete (this can take a while due to npx)
-      // Look for the "Fully Initialized" status using data-testid
-      const finalStatusLabel = await $('[data-testid="project-status-badge"]');
-      // Wait for the status to change to "Fully Initialized"
-      // 150s timeout - npx download + bmad-method install can take time
+      // First, wait for the init dialog to close (indicates command finished)
       await browser.waitUntil(
         async () => {
-          const text = await browser.execute((el) => el.textContent, finalStatusLabel);
-          return text === 'Fully Initialized';
+          const dialog = await $('h3=Initialize Project');
+          return !(await dialog.isExisting());
         },
-        { timeout: 150000, timeoutMsg: 'Expected status to be "Fully Initialized" after init' }
+        { timeout: 150000, timeoutMsg: 'Init dialog never closed - command may have failed' }
       );
+
+      // Small pause to let UI refresh after command completes
+      await browser.pause(1000);
+
+      // Now check the status
+      const finalStatusLabel = await $('[data-testid="project-status-badge"]');
+      const statusText = await browser.execute((el) => el.textContent, finalStatusLabel);
+
+      // Debug: log what status we actually got
+      console.log('Final status after init:', statusText);
+
+      await expect(statusText).toBe('Fully Initialized');
 
       const finalStatus = await finalStatusLabel.getText();
       await expect(finalStatus).toBe('Fully Initialized');
