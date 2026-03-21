@@ -178,8 +178,7 @@ describe('Project Selection Flow', () => {
      * Extended timeout (3 min) to accommodate npm registry + initialization.
      */
     it('should initialize BMAD in git-only folder and show Fully Initialized status', async function () {
-      // Allow 3 minutes for npx download + initialization
-      this.timeout(180000);
+      // Uses global 5 minute timeout from wdio.conf.js for npx download + init
       // Copy git-only fixture to temp
       const projectPath = copyFixtureToTemp(FIXTURES.GIT_ONLY_PROJECT);
       tempDirs.push(projectPath);
