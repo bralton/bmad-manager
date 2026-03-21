@@ -281,6 +281,9 @@ fn is_planning_workflow_type(workflow_type: &str) -> bool {
 }
 
 /// Parses a single artifact file into ArtifactInfo.
+///
+/// Categorization uses `workflowType` frontmatter if present (BUG-003 fix),
+/// falling back to filename-based categorization.
 pub fn parse_artifact_file(path: &Path) -> Option<ArtifactInfo> {
     if !path.is_file() {
         return None;
@@ -294,7 +297,19 @@ pub fn parse_artifact_file(path: &Path) -> Option<ArtifactInfo> {
     let filename = path.file_name()?.to_str()?;
     let content = fs::read_to_string(path).ok()?;
 
-    let category = categorize_artifact(filename);
+    // BUG-003 fix: Check workflowType frontmatter first for categorization
+    let category = if let Some(workflow_type) = extract_workflow_type_from_content(&content) {
+        if is_planning_workflow_type(&workflow_type) {
+            ArtifactCategory::Planning
+        } else {
+            // Fallback to filename-based categorization
+            categorize_artifact(filename)
+        }
+    } else {
+        // No workflowType - use filename-based categorization
+        categorize_artifact(filename)
+    };
+
     let title = extract_title_from_content(&content, filename);
     let status = extract_status_from_content(&content);
 

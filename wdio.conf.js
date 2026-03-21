@@ -133,7 +133,7 @@ export const config = {
   framework: 'mocha',
   mochaOpts: {
     ui: 'bdd',
-    timeout: 60000, // 60 seconds - app startup can be slow
+    timeout: 360000, // 6 minutes - BMAD init test needs time for npx + install
   },
 
   // ===================

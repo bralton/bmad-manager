@@ -9,6 +9,10 @@ _bmad/
 _bmad-output/
 .claude/
 
+# Allow _bmad-output in E2E fixtures (required for test data)
+!e2e/fixtures/**/_bmad-output/
+!e2e/fixtures/**/_bmad-output/**
+
 # Build outputs
 build/
 .svelte-kit/

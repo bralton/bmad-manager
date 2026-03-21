@@ -1,0 +1,8 @@
+node_modules
+src-tauri/target
+.git
+*.log
+e2e-results
+coverage
+build
+.svelte-kit

@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  e2e:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile
+    volumes:
+      # Mount source for faster iteration (optional - rebuilds are slower but changes are picked up)
+      # - ..:/app
+      # Mount e2e results
+      - ./results:/app/e2e-results

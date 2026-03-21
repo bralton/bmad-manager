@@ -8,7 +8,7 @@ mod git;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use thiserror::Error;
 
 pub use bmad::init_bmad;
@@ -29,19 +29,34 @@ pub fn run_command(cmd: &str, args: &[&str], cwd: &Path) -> std::io::Result<Outp
     Command::new(cmd)
         .args(args)
         .current_dir(cwd)
+        .stdin(Stdio::null()) // Prevent hanging on stdin reads
+        .env("CI", "true") // Signal non-interactive environment
+        .env("NPM_CONFIG_YES", "true") // Auto-confirm npm prompts
+        .env("FORCE_COLOR", "0") // Disable ANSI colors
         .output()
         .or_else(|_| {
             Command::new("cmd")
                 .args(["/C", cmd])
                 .args(args)
                 .current_dir(cwd)
+                .stdin(Stdio::null())
+                .env("CI", "true")
+                .env("NPM_CONFIG_YES", "true")
+                .env("FORCE_COLOR", "0")
                 .output()
         })
 }
 
 #[cfg(not(target_os = "windows"))]
 pub fn run_command(cmd: &str, args: &[&str], cwd: &Path) -> std::io::Result<Output> {
-    Command::new(cmd).args(args).current_dir(cwd).output()
+    Command::new(cmd)
+        .args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::null()) // Prevent hanging on stdin reads
+        .env("CI", "true") // Signal non-interactive environment
+        .env("NPM_CONFIG_YES", "true") // Auto-confirm npm prompts
+        .env("FORCE_COLOR", "0") // Disable ANSI colors
+        .output()
 }
 
 /// Options for project initialization.
