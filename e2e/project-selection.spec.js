@@ -175,16 +175,9 @@ describe('Project Selection Flow', () => {
      * NOTE: This test requires network access to npm registry as it runs
      * `npx bmad-method@6 install`. It validates BUG-004 fix.
      *
-     * SKIPPED IN CI: This test is unreliable in CI due to:
-     * - npm registry network latency/timeouts
-     * - npx package download time variability
-     * - External dependency on bmad-method package availability
-     *
-     * Run locally with: npm run test:e2e
-     * The core init UI flow is tested; actual npx execution is integration-level.
+     * Extended timeout (3 min) to accommodate npm registry + initialization.
      */
-    const testFn = process.env.CI ? it.skip : it;
-    testFn('should initialize BMAD in git-only folder and show Fully Initialized status', async function () {
+    it('should initialize BMAD in git-only folder and show Fully Initialized status', async function () {
       // Allow 3 minutes for npx download + initialization
       this.timeout(180000);
       // Copy git-only fixture to temp
@@ -242,12 +235,13 @@ describe('Project Selection Flow', () => {
       // Look for the "Fully Initialized" status using data-testid
       const finalStatusLabel = await $('[data-testid="project-status-badge"]');
       // Wait for the status to change to "Fully Initialized"
+      // 150s timeout - npx download + bmad-method install can take time
       await browser.waitUntil(
         async () => {
-          const text = await finalStatusLabel.getText();
+          const text = await browser.execute((el) => el.textContent, finalStatusLabel);
           return text === 'Fully Initialized';
         },
-        { timeout: 120000, timeoutMsg: 'Expected status to be "Fully Initialized"' }
+        { timeout: 150000, timeoutMsg: 'Expected status to be "Fully Initialized" after init' }
       );
 
       const finalStatus = await finalStatusLabel.getText();
