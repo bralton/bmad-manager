@@ -146,9 +146,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Pre-cache bmad-method for E2E init test
-        run: npx bmad-method@6 --help || true
-
       - name: Build debug binary for E2E tests
         run: npm run build:e2e-app
 
